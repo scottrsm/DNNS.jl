@@ -1,2 +1,2 @@
 # DNNS-jl
-A Julia package to do Deep Learning
+A Julia package to do Deep Learning.
