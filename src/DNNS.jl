@@ -300,20 +300,6 @@ function (dnn::DNN{T})(x::AbstractVector{T}) where {T<:Number}
 end
 
 
-"""
-    make_const!(l)
-
-Makes the parameters in the layers constants -- for the purpose of differentiation.
-
-# Type Constraints
-- `T <: Number`
-
-# Arguments
-- `l :: DLayer{T}`
-
-# Return
-`nothing`
-"""
 function make_const!(l::DLayer{T}) where {T<:Number}
     t0 = zero(T)
     n, m = l.dims
@@ -330,22 +316,6 @@ function make_const!(l::DLayer{T}) where {T<:Number}
     return nothing
 end
 
-"""
-    set_bd_pd!l, k, d)
-
-Sets the derivative of one of the elements of the bias vector in the layer.
-
-# Type Constraints
-- `T <: Number`
-
-# Arguments
-- `l :: DLayer{T}` -- A DNN layer
-- `k :: Int64{T}`  -- The index to access the layer biases vector.
-- `d :: T`         -- The value of the derivative to set at index `k`.
-
-# Return
-`nothing`
-"""
 function set_bd_pd!(l::DLayer{T}, k::Int64, d::T) where {T<:Number}
     l.b[k].d = d
 
@@ -353,22 +323,6 @@ function set_bd_pd!(l::DLayer{T}, k::Int64, d::T) where {T<:Number}
 end
 
 
-"""
-    set_md_pd!l, k, d)
-
-Sets the derivative of one of the elements of the matrix in the layer.
-
-# Type Constraints
-- `T <: Number`
-
-# Arguments
-- `l :: DLayer{T}` -- A DNN layer.
-- `k :: Int64{T}`  -- The index to access the layer matrix.
-- `d :: T`         -- The value of the derivative to set at index `k`.
-
-# Return
-`nothing`
-"""
 function set_md_pd!(l::DLayer{T}, k::Int64, d::T) where {T<:Number}
     l.M[k].d = d
 
