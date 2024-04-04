@@ -72,7 +72,7 @@ In practice, one uses one of two outer constructors to create a `PWL` struct.
 - `xs :: Vector{T}`   -- The "x" values.
 - `ys :: Vector{T}`   -- The "y" values.
 - `ds :: Vector{T}`   -- The "slopes" of the segments.
-- `n  :: Int64`       -- The number of "x,y" values.
+- `n  :: Int`       -- The number of "x,y" values.
                          
 
 ## Public Constructors
@@ -102,7 +102,7 @@ struct PWL{T<:Number}
     xs::Vector{T}
     ys::Vector{T}
     ls::Vector{T}
-    n::Int64
+    n::Int
 
     # Inner Constructor.
     function PWL{T}(nxs::Vector{T}, nys::Vector{T}, nls::Vector{T}) where {T<:Number}
@@ -221,7 +221,7 @@ struct DLayer{T<:Number}
     M::Matrix{AD{T}}
     b::Vector{AD{T}}
     op::Function
-    dims::Tuple{Int64,Int64}
+    dims::Tuple{Int,Int}
 
     function DLayer{T}(Mn::Matrix{T}, bn::Vector{T}, opn::Function) where {T<:Number}
         n, m = size(Mn)
@@ -316,14 +316,14 @@ function make_const!(l::DLayer{T}) where {T<:Number}
     return nothing
 end
 
-function set_bd_pd!(l::DLayer{T}, k::Int64, d::T) where {T<:Number}
+function set_bd_pd!(l::DLayer{T}, k::Int, d::T) where {T<:Number}
     l.b[k].d = d
 
     return nothing
 end
 
 
-function set_md_pd!(l::DLayer{T}, k::Int64, d::T) where {T<:Number}
+function set_md_pd!(l::DLayer{T}, k::Int, d::T) where {T<:Number}
     l.M[k].d = d
 
     return nothing
@@ -755,9 +755,9 @@ end
 #-------------------------------------------------------------------
 
 Base.zero(::Type{AD{T}}) where {T<:Number} = AD(zero(T), zero(T))
-Base.zeros(::Type{AD{T}}, n::Int64) where {T<:Number} = fill(AD(zero(T), zero(T), n))
+Base.zeros(::Type{AD{T}}, n::Int) where {T<:Number} = fill(AD(zero(T), zero(T), n))
 Base.one(::Type{AD{T}}) where {T<:Number} = AD(one(T), zero(T))
-Base.ones(::Type{AD{T}}, n::Int64) where {T<:Number} = fill(AD(one(T), zero(T), n))
+Base.ones(::Type{AD{T}}, n::Int) where {T<:Number} = fill(AD(one(T), zero(T), n))
 
 
 function LA.dot(x::Vector{AD{T}}, y::Vector{AD{T}}) where {T<:Number}
