@@ -28,21 +28,12 @@ that it can also serve as a function.
         - `sigmoid3`
         - `relu`
         - `relur`
-    - Associated Linearing Functions
+    - Associated Learning Functions
         - `loss`
         - `fit`
 
 ## Data Structures
 
-
-
-```@docs
-(PWL{T})(::T) where {T<:Number}
-```
-
-```@docs
-(PWL{T})(::AD{T}) where {T<:Number}
-```
 
 ```@docs
 AD
@@ -58,6 +49,18 @@ DLayer
 
 ```@docs
 DNN
+```
+
+```@docs
+(PWL)(::T) where {T<:Number}
+```
+
+```@docs
+(DLayer)(::AD{T}) where {T <: Number}
+```
+
+```@docs
+(DNN)(::AbstractVector{T}) where {T <: Number}
 ```
 
 ## Non-linear Activation Functions

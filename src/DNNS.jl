@@ -217,6 +217,29 @@ function (p::PWL{T})(x::T) where {T<:Number}
 end
 
 
+
+"""
+    DLayer{T<:Number}
+
+A structure representing one layer of a neural net. 
+
+## Type Constraints
+- `T <: Number`
+- The type `T` must have a total ordering.
+
+## Fields
+- `M :: Matrix{AD{T}}`        -- The "x" values.
+- `b :: Vector{AD{T}}`        -- The "y" values.
+- `op :: Function`            -- The "slopes" of the segments.
+- `dims  :: Tuple{Int, Int}`  -- The number of "x,y" values.
+                         
+
+## Public Constructors
+`DLayer(Mn::Matrix{T}, bn::Vector{T}, opn)`
+- `Mn` -- A `MxN`weight matrix.
+- `bn` -- A `N`dimensional bias vector.
+- `op` -- The non-linear thresholding function.
+"""
 struct DLayer{T<:Number}
     M::Matrix{AD{T}}
     b::Vector{AD{T}}
@@ -235,10 +258,11 @@ end
 DLayer(Mn::Matrix{T}, bn::Vector{T}, opn) where {T<:Number} = DLayer{T}(Mn, bn, opn)
 
 
-"""
-    (L)(x)
 
-Treats the structure `DLayer` as a function: ``{\\cal R}^m \\mapsto {\\cal R}^n`` .
+"""
+	(L::DLayer{T})(x::AD{T}) where {T <: Number}
+If `(M,N) = L.dims`, then we may treat the structure, `DLayer`, as
+a function: ``{\\cal R}^m \\mapsto {\\cal R}^n`` .
 
 Takes input `x` and passes it through the layer.
 
@@ -246,10 +270,10 @@ Takes input `x` and passes it through the layer.
 - `T <: Number`
 
 # Arguments
-- `x :: AD{T}`  -- An input value.
+- `x :: AD{T}`  -- An input value of dimension `N`.
 
 # Return
-`::Vector{AD{T}}` of dimension ``dims[1]`
+`::Vector{AD{T}}` of dimension `M`.
 """
 function (L::DLayer{T})(x::AD{T}) where {T<:Number}
     length(x) == L.dims[1] || error("DLayer (As Function): Vector `x` is incompatible with layer dimensions.")
@@ -257,6 +281,25 @@ function (L::DLayer{T})(x::AD{T}) where {T<:Number}
     return L.op.(L.M * x .+ L.b)
 end
 
+
+
+"""
+    DNN{T<:Number}
+
+A structure representing one layer of a neural net. 
+
+## Type Constraints
+- `T <: Number`
+- The type `T` must have a total ordering.
+
+## Fields
+- `layers :: Vector{DLayer{T}` -- The neural net layers.
+                         
+
+## Public Constructors
+`DNN(ls::Vector{DLayer{T}}`
+- `ls` -- A vector of DLayers.
+"""
 struct DNN{T<:Number}
     layers::Vector{DLayer{T}}
 
@@ -272,20 +315,21 @@ end
 # Outer Contructor
 DNN(ls::Vector{DLayer{T}}) where {T<:Number} = DNN{T}(ls)
 
-"""
-    (DNN)(x)
 
-Treats the structure `DNN` as a function: ``{\\cal R}^m \\mapsto {\\cal R}^n``
-Takes input `x` and passes it through each of the layers of DNN.
+"""
+	(dnn::DNN{T})(x::AbstractVector{T}) where {T <: Number}
+Let `N = DNN.ls[1].dims[2]` and `M = DNN.ls[end].dims[1]`, then
+here we treatsthe structure `DNN` as a function: ``{\\cal R}^N \\mapsto {\\cal R}^M``
+Takes input `x` and passes it through each of the layers of `DNN`.
 
 # Type Constraints
 - `T <: Number`
 
 # Arguments
-- `x :: T`  -- An input value.
+- `x :: T`  -- An input value of dimension `N`.
 
 # Return
-`::Vector{AD{T}}` of dimension
+`::Vector{AD{T}}` of dimension `M`.
 """
 function (dnn::DNN{T})(x::AbstractVector{T}) where {T<:Number}
 
