@@ -1,7 +1,7 @@
 name = "DNNS"
 uuid = "edf8bdf0-8a56-4a70-b67f-353890f0661e"
 authors = ["Scott McIntire <scottrsm@gmail.com>"]
-version = "1.0.0"
+version = "1.0.1"
 
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
