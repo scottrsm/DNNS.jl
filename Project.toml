@@ -1,7 +1,7 @@
 name = "DNNS"
 uuid = "edf8bdf0-8a56-4a70-b67f-353890f0661e"
-authors = ["Scott McIntire <scottrsm@gmail.com>"]
-version = "1.0.1"
+authors = ["Roland Scott McIntire"]
+version = "1.0.2"
 
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -10,8 +10,11 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 [compat]
 julia = "1.10"
 
-
 [extras]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterTools = "35a29f4d-8980-5a13-9543-d66fff28ecb8"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
+
