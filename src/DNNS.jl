@@ -1,6 +1,7 @@
 module DNNS
 
-export AD, PWL, DLayer, DNN, sigmoid1, sigmoid2, sigmoid3, relu, relur, loss, fit
+export AD, PWL, DLayer, DNN, loss, fit
+export sigmoid1, sigmoid2, sigmoid3, relu, relur, softmax
 
 import Base: promote_rule, show
 import Base: +, -, *, /, ^, exp, log
@@ -857,6 +858,18 @@ function Base.:(*)(A::Matrix{AD{T}}, v::Vector{T}) where {T<:Number}
     end
 
     return res
+end
+
+
+function softmax(xs::Vector{AD{T}}, τ=1.0::Float64) where {T<:Number}
+	n = length(xs)
+	mv = maximum([x.d for x in xs])
+	zs = (xs .- mv) / τ
+	zsm = AD(zero(T), zero(T))
+	for i in 1:n
+		zsm += exp(zs[i])
+	end
+	return exp.(zs) ./ zsm
 end
 
 end # DNNS module
