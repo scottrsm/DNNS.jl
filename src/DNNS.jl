@@ -11,9 +11,6 @@ import Base: asin, acos, atan, acsc, asec, acot
 import LinearAlgebra as LA
 import StatsBase: sample
 
-# Module constants
-const X_REL_TOL = 1.0e-10
-
 """
     AD{T}
 
@@ -109,7 +106,7 @@ struct PWL{T<:Number}
         try
             zero(T) < one(T)
         catch
-            throw(DomainError("PWD{T}: (Inner Constructor) Type $T does not have a total ordering"))
+            throw(DomainError(T, "`PWD{T}`: (Inner Constructor) Type `$T` does not have a total ordering."))
         end
 
         xmin, xmax = extrema(nxs)
@@ -117,16 +114,16 @@ struct PWL{T<:Number}
 
         n = length(nxs)
         if any(diff(nxs) .- tol .<= zero(T))
-            throw(DomainError("PWD{T}: (Inner Constructor) `nxs` is not sorted or has duplicates"))
+            throw(DomainError(nxs, "`PWD{T}`: (Inner Constructor) `nxs` is not sorted or has duplicates."))
         end
 
         if length(nls) != 2
-            throw(DomainError("PWD{T}: (Inner Constructor) `nls` vector must have a length of 2"))
+            throw(DomainError(nls, "`PWD{T}`: (Inner Constructor) `nls` vector must have a length of 2."))
         end
 
         n = length(nxs)
         if n != length(nys)
-            throw(DomainError("PWD{T}: (Inner Constructor) `nxs` and `nys` vectors must have the same length"))
+            throw(DomainError(nys, "`PWD{T}`: (Inner Constructor) `nxs` and `nys` vectors must have the same length."))
         end
 
         # Compute the interior slopes.
@@ -156,11 +153,11 @@ struct PWL{T<:Number}
         tol = X_REL_TOL * max(abs(xmin), abs(xmax))
 
         if any(diff(nxs) .- tol .<= zero(T))
-            throw(DomainError("PWD{T}: (Inner Constructor) `nxs` is not sorted or has duplicates."))
+            throw(DomainError(nxs, "`PWD{T}`: (Inner Constructor) `nxs` is not sorted or has duplicates."))
         end
 
         if (length(nls) - n) != 1
-            throw(DomainError("PWD{T}: (Inner Constructor) `nls` vector length must be 1 larger than `nxs` vector length."))
+            throw(DomainError(nls, "`PWD{T}`: (Inner Constructor) `nls` vector length must be 1 larger than `nxs` vector length."))
         end
 
         nys = zeros(T, length(nxs))
@@ -248,7 +245,7 @@ struct DLayer{T<:Number}
 
     function DLayer{T}(Mn::Matrix{T}, bn::Vector{T}, opn::Function) where {T<:Number}
         n, m = size(Mn)
-        length(bn) == n || error("DLayer (Inner Constructor): Matrix, `Mn`, and vector, `bn`, are incompatible.")
+		length(bn) == n || throw(DomainError(m, "DLayer (Inner Constructor): Matrix, `Mn`, and vector, `bn`, are incompatible."))
 
         return new{T}(AD{T}.(Mn), AD{T}.(bn), opn, (n, m))
     end
@@ -276,7 +273,7 @@ Takes input `x` and passes it through the layer.
 `::Vector{AD{T}}` of dimension `M`.
 """
 function (L::DLayer{T})(x::AD{T}) where {T<:Number}
-    length(x) == L.dims[1] || error("DLayer (As Function): Vector `x` is incompatible with layer dimensions.")
+	length(x) == L.dims[1] || throw(DomainError(L.dims, "DLayer (As Function): Vector `x` is incompatible with layer dimensions."))
 
     return L.op.(L.M * x .+ L.b)
 end
@@ -304,9 +301,9 @@ struct DNN{T<:Number}
     layers::Vector{DLayer{T}}
 
     function DNN{T}(ls::Vector{DLayer{T}}) where {T<:Number}
-        length(ls) != 0 || error("DNN (Inner Constructor): Length of ls is 0.")
+		length(ls) != 0 || throw(DomainError(length(ls), "DNN (Inner Constructor): Length of ls is 0."))
         for i in eachindex(ls[1:end-1])
-            ls[i].dims[1] == ls[i+1].dims[2] || error("DNN (Inner Constructor): DLayer incompatibility between layers $i and $(i+1).")
+			ls[i].dims[1] == ls[i+1].dims[2] || throw(DomainError("Mismatch Dims", "DNN (Inner Constructor): DLayer incompatibility between layers $i and $(i+1)."))
         end
         return new{T}(ls)
     end
@@ -334,7 +331,7 @@ Takes input `x` and passes it through each of the layers of `DNN`.
 function (dnn::DNN{T})(x::AbstractVector{T}) where {T<:Number}
 
     _, n = size(dnn.layers[1].M)
-    length(x) == n || error("DNN (as function): Matrix from first layer is incompatible with `x`.")
+	length(x) == n || throw(DomainError(n, "DNN (as function): Matrix from first layer is incompatible with `x`."))
 
     for i in eachindex(dnn.layers)
         x = dnn.layers[i].op.(dnn.layers[i].M * x .+ dnn.layers[i].b)
@@ -393,7 +390,7 @@ Computes the loss of the neural network given inputs, `X`, and outputs `Y`.
 function loss(dnn::DNN{T}, X::Matrix{T}, Y::Matrix{T}) where {T<:Number}
     _, m = size(X)
     _, my = size(Y)
-    m == my || error("fit: Dimensions of `X` and `Y` are incompatible.")
+	m == my || throw(DomainError("Mismatch Dims", "`loss`: Dimensions of `X` and `Y` are incompatible."))
 
     s = zero(AD{T})
     @inbounds for i in 1:m
@@ -429,7 +426,7 @@ function fit(dnn::DNN{T}, X::Matrix{T}, Y::Matrix{T};
     _, m = size(X)
     _, my = size(Y)
 
-    m == my || error("fit: Arrays, `X`, and `Y`, are incompatible.")
+	m == my || throw(DomainError("Mismatch Dims", "`fit`: Arrays, `X`, and `Y`, are incompatible."))
 
     lss_last = Inf
     lss = Inf
@@ -438,10 +435,6 @@ function fit(dnn::DNN{T}, X::Matrix{T}, Y::Matrix{T};
     num_iterates = N
     mu = μ
     for j in 1:N
-        if N % 1000 == 0
-            mu = μ
-        end
-        μ *= 0.999
         rel_err = abs((lss - lss_last) / lss_last)
         if !isnan(rel_err) && j > 20 && rel_err <= relerr
             finished_early = true
@@ -524,13 +517,13 @@ end
 
 function Base.:(/)(x::AD{T}, y::AD{S}) where {T<:Number,S<:Number}
     xp, yp = promote(x, y)
-    yp == zero(eltype(yp.v)) && error("AD: 'y.v' == 0 is not a valid value for x.v / y.v.")
+	yp == zero(eltype(yp.v)) && throw(DomainError(y.v, "AD: 'y.v' == 0 is not a valid value for x.v / y.v."))
     AD(xp.v / yp.v, xp.d / yp.v - (xp.v * yp.d) / (yp.v * yp.v))
 end
 
 function Base.:(^)(x::AD{T}, y::AD{S}) where {T<:Number,S<:Number}
     xp, yp = promote(x, y)
-    x.v == zero(eltype(xp)) && error("AD: 'x.v' == 0 is not a valid value for x.v^y.v.")
+	x.v == zero(eltype(xp)) && throw(DomainError(x.v, "AD: 'x.v' == 0 is not a valid value for x.v^y.v."))
     t = xp.v^yp.v
     AD(t, t * (yp.d * log(xp.v) + (yp.v * xp.d) / xp.v))
 end
@@ -549,7 +542,7 @@ function Base.exp(x::AD{T}) where {T<:Number}
 end
 
 function Base.log(x::AD{T}) where {T<:Number}
-    x.v == zero(T) && error("AD: 'x.v' == 0 is not a valid value for log(x.v).")
+	x.v == zero(T) && throw(DomainError(x.v, "AD: 'x.v' == 0 is not a valid value for log(x.v)."))
     AD(log(x.v), x.d / x.v)
 end
 
@@ -560,7 +553,7 @@ Base.cos(x::AD{T}) where {T<:Number} = AD(cos(x.v), -sin(x.v) * x.d)
 
 function Base.tan(x::AD{T}) where {T<:Number}
     mx = mod(x.v, T(pi / 2))
-    mx == zero(T) && error("AD: 'x.v' mod π / 2 == 0 is not a valid value for tan(x.v).")
+	mx == zero(T) && throw(DomainError(x.v, "AD: 'x.v' mod π / 2 == 0 is not a valid value for tan(x.v)."))
     s = sec(mx)
     t = tan(mx)
     AD(t, s * s * x.d)
@@ -569,7 +562,7 @@ end
 # csc, sec, cot
 function Base.csc(x::AD{T}) where {T<:Number}
     mx = mod(x.v, T(pi))
-    mx == zero(T) && error("AD: 'x.v' mod π == 0 is not a valid value for csc(x.v).")
+	mx == zero(T) && throw(DomainError(x.v, "AD: 'x.v' mod π == 0 is not a valid value for csc(x.v)."))
     ct = cot(mx)
     c = csc(mx)
     AD(c, -c * ct * x.d)
@@ -577,7 +570,7 @@ end
 
 function Base.sec(x::AD{T}) where {T<:Number}
     mx = mod(x.v, T(pi / 2))
-    mx == zero(T) && error("AD: 'x.v' mod π / 2 == 0 is not a valid value for sec(x.v).")
+	mx == zero(T) && throw(DomainError(x.v, "AD: 'x.v' mod π / 2 == 0 is not a valid value for sec(x.v)."))
     s = sec(mx)
     t = tan(mx)
     AD(s, s * t * x.d)
@@ -585,7 +578,7 @@ end
 
 function Base.cot(x::AD{T}) where {T<:Number}
     mx = mod(x.v, T(pi))
-    mx == zero(T) && error("AD: 'x.v' mod π == 0 is not a valid value for cot(x.v).")
+	mx == zero(T) && throw(DomainError(x.v, "AD: 'x.v' mod π == 0 is not a valid value for cot(x.v)."))
     c = csc(mx)
     ct = cot(mx)
     AD(ct, -c * c * x.d)
@@ -613,7 +606,7 @@ end
 # csch, sech, coth
 function Base.csch(x::AD{T}) where {T<:Number}
     mx = mod(x.v, T(pi))
-    mx == zero(T) && error("AD: 'x.v' mod π == 0 is not a valid value for csch(x.v).")
+	mx == zero(T) && throw(DomainError(x.v, "AD: 'x.v' mod π == 0 is not a valid value for csch(x.v)."))
     ch = csch(mx)
     ct = coth(mx)
     AD(ch, -ch * ct * x.d)
@@ -627,7 +620,7 @@ end
 
 function Base.coth(x::AD{T}) where {T<:Number}
     mx = mod(x.v, T(pi))
-    mx == zero(T) && error("AD: 'x.v' mod π == 0 is not a valid value for coth(x.v).")
+	mx == zero(T) && throw(DomainError(x.v, "AD: 'x.v' mod π == 0 is not a valid value for coth(x.v)."))
     ch = csch(mx)
     ct = coth(mx)
     AD(ct, -ch * ch * x.d)
@@ -640,12 +633,12 @@ Base.atan(x::AD{T}) where {T<:Number} = AD(atan(x.v), one(T) / (one(T) + x.v * x
 
 # Inverse trig functions: acsc, asec, acot.
 function Base.acsc(x::AD{T}) where {T<:Number}
-    abs(x.v) < one(T) && error("AD: '|x.v|' < 1 is not a valid value for asec(x.v).")
+	abs(x.v) < one(T) && throw(DomainError(x.v, "AD: '|x.v|' < 1 is not a valid value for asec(x.v)."))
     AD(acsc(x.v), -one(T) / (x.v * sqrt(x.v * x.v - one(T))))
 end
 
 function Base.asec(x::AD{T}) where {T<:Number}
-    abs(x.v) < one(T) && error("AD: '|x.v|' < 1 is not a valid value for asec(x.v).")
+	abs(x.v) < one(T) && throw(DomainError(x.v, "AD: '|x.v|' < 1 is not a valid value for asec(x.v)."))
     AD(asec(x.v), one(T) / (abs(x.v) * sqrt(x.v * x.v - one(T))))
 end
 
@@ -749,8 +742,6 @@ Implements an `AD` version of a nodified version of the relu function.
 The modification is that while the value of the `relur` is the same as `relu`,
 its derivative is not. The value of the derivative is `0` or `1`, however
 the boundary moves randomly around the natural input boundary of `0`,
-its derivative is not. The value of the derivative is `0` or `1`, however
-the boundary moves randomly around the natural input boundary of `0`.
 
 # Type Constraints
 - T <: Number
@@ -800,14 +791,12 @@ end
 
 Base.zero(::Type{AD{T}}) where {T<:Number} = AD(zero(T), zero(T))
 Base.zeros(::Type{AD{T}}, n::Int) where {T<:Number} = fill(AD(zero(T), zero(T), n))
-Base.one(::Type{AD{T}}) where {T<:Number} = AD(one(T), zero(T))
-Base.ones(::Type{AD{T}}, n::Int) where {T<:Number} = fill(AD(one(T), zero(T), n))
 
 
 function LA.dot(x::Vector{AD{T}}, y::Vector{AD{T}}) where {T<:Number}
     n = length(x)
     if length(y) != n
-        error("dot: Vector lengths are not the same.")
+		throw(DomainError("Incompatible dims", "dot: Vector lengths are not the same."))
     end
     s = zero(AD{T})
     @inbounds @simd for i in 1:n
@@ -819,7 +808,7 @@ end
 function LA.dot(x::Vector{AD{T}}, y::Vector{T}) where {T<:Number}
     n = length(x)
     if length(y) != n
-        error("dot: Vector lengths are not the same.")
+		throw(DomainError("Incompatible dims", "dot: Vector lengths are not the same."))
     end
     s = zero(AD{T})
     @inbounds @simd for i in 1:n
@@ -835,7 +824,7 @@ end
 function Base.:(*)(A::Matrix{AD{T}}, v::Vector{AD{T}}) where {T<:Number}
     n, m = size(A)
     if m != length(v)
-        error("*: Matrix A and vector v have incompatible sizes.")
+		throw(DomainError("Incompatible dims", "*: Matrix A and vector v have incompatible sizes."))
     end
 
     res = Vector{AD{T}}(undef, n)
@@ -854,7 +843,7 @@ end
 function Base.:(*)(A::Matrix{AD{T}}, v::Vector{T}) where {T<:Number}
     n, m = size(A)
     if m != length(v)
-        error("*: Matrix A and vector v have incompatible sizes.")
+		throw(DomainError("Incompatible dims", "*: Matrix A and vector v have incompatible sizes."))
     end
 
     res = Vector{AD{T}}(undef, n)
