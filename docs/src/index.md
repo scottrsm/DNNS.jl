@@ -26,6 +26,7 @@ that it can also serve as a function.
         - `sigmoid1`
         - `sigmoid2`
         - `sigmoid3`
+        - `softmax`
         - `relu`
         - `relur`
     - Associated Learning Functions
