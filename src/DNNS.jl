@@ -755,7 +755,6 @@ the boundary moves randomly around the natural input boundary of `0`,
 """
 function relur(x::AD{T}) where {T<:Number}
     d = x.v <= rand([-0.25, -0.1, -0.025, -0.01, 0.0, 0.01, 0.025, 0.1, 0.25]) ? zero(T) : one(T)
-    d = x.v <= 0 ? zero(T) : one(T)
     AD(x.v, d * x.d)
 end
 
