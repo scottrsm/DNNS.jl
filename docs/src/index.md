@@ -86,6 +86,10 @@ relu
 relur
 ```
 
+```@docs
+softmax
+```
+
 ## Functions
 
 ```@docs

@@ -651,7 +651,7 @@ Base.acot(x::AD{T}) where {T<:Number} = AD(acot(x.v), -one(T) / (one(T) + x.v * 
 #-------------------------------------------------------------------
 
 """
-    sigmoid1(x)
+	sigmoid1(x::AD{T})
 
 Implements an `AD` version of the standard "exponential" sigmoid function.
 j
@@ -674,7 +674,7 @@ end
 
 
 """
-    sigmoid2(x)
+	sigmoid2(x::AD{T})
 
 Implements an `AD` version of the standard "tanh" sigmoid function.
 
@@ -695,7 +695,7 @@ end
 
 
 """
-    sigmoid3(x)
+	sigmoid3(x::AD{T})
 
 Implements an `AD` version of the standard "arctan" sigmoid function.
 
@@ -717,7 +717,7 @@ end
 
 
 """
-    relu(x)
+	relu(x::AD{T})
 
 Implements an `AD` version of the standard relu function.
 
@@ -737,7 +737,7 @@ end
 
 
 """
-    relur(x)
+	relur(x::AD{T})
 
 Implements an `AD` version of a nodified version of the relu function.
 The modification is that while the value of the `relur` is the same as `relu`,
@@ -758,6 +758,32 @@ function relur(x::AD{T}) where {T<:Number}
     AD(x.v, d * x.d)
 end
 
+
+"""
+	softmax(x::Vector{AD{T}} [, τ=one(T)])
+
+Implements an `AD` version of the `softmax` function.
+
+# Type Constraints
+- T <: Number
+
+# Arguments
+- x :: Vector{AD{T}}  -- The `AD` input vector.
+- τ :: T              -- The "temperature" parameter. 
+
+# Return
+::Vector{AD{T}} -- The output AD vector.
+"""
+function softmax(xs::Vector{AD{T}}, τ=one(T)::T) where {T<:Number}
+	n = length(xs)
+	im = argmax([x.v for x in xs])
+	zs = (xs .- xs[im]) / τ
+	zsm = AD(zero(T), zero(T))
+	for i in 1:n
+		zsm += exp(zs[i])
+	end
+	return exp.(zs) ./ zsm
+end
 
 """
 	(PWL{T})(x::AD{T}) where {T<:Number}
@@ -860,16 +886,6 @@ function Base.:(*)(A::Matrix{AD{T}}, v::Vector{T}) where {T<:Number}
 end
 
 
-function softmax(xs::Vector{AD{T}}, τ=one(T)::T) where {T<:Number}
-	n = length(xs)
-	im = argmax([x.v for x in xs])
-	zs = (xs .- xs[im]) / τ
-	zsm = AD(zero(T), zero(T))
-	for i in 1:n
-		zsm += exp(zs[i])
-	end
-	return exp.(zs) ./ zsm
-end
 
 end # DNNS module
 
