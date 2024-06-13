@@ -861,10 +861,10 @@ function Base.:(*)(A::Matrix{AD{T}}, v::Vector{T}) where {T<:Number}
 end
 
 
-function softmax(xs::Vector{AD{T}}, τ=1.0::Float64) where {T<:Number}
+function softmax(xs::Vector{AD{T}}, τ=one(T)::T) where {T<:Number}
 	n = length(xs)
-	mv = maximum([x.d for x in xs])
-	zs = (xs .- mv) / τ
+	im = argmax([x.v for x in xs])
+	zs = (xs .- xs[im]) / τ
 	zsm = AD(zero(T), zero(T))
 	for i in 1:n
 		zsm += exp(zs[i])
