@@ -1,15 +1,17 @@
 module DNNS
 
 export AD, PWL, DLayer, DNN, loss, fit
-export sigmoid1, sigmoid2, sigmoid3, relu, relur, softmax
+export sigmoid1, sigmoid2, sigmoid3, relu, relur, softmax, L1
 
 import Base: promote_rule, show
 import Base: +, -, *, /, ^, exp, log
 import Base: sin, cos, tan, csc, sec, cot
 import Base: sinh, cosh, tanh, csch, sech, coth
 import Base: asin, acos, atan, acsc, asec, acot
+import Base.Threads as TH
 
 import LinearAlgebra as LA
+import LinearAlgebra: dot
 import StatsBase: sample
 
 """
@@ -422,22 +424,24 @@ matrices and biases for each layer in the network.
 `::nothing`
 """
 function fit(dnn::DNN{T}, X::Matrix{T}, Y::Matrix{T};
-    N=1000, relerr=1.0e-6, μ=1.0e-3, verbose=false) where {T<:Number}
+		N=1000::Int64, relerr=T(1.0e-6)::T, μ=T(1.0e-3)::T, verbose=false::Bool) where {T<:Number}
 
     _, m = size(X)
     _, my = size(Y)
 
 	m == my || throw(DomainError("Mismatch Dims", "`fit`: Arrays, `X`, and `Y`, are incompatible."))
 
-    lss_last = Inf
-    lss = Inf
+	lss_last::T = typemax(T)
+	lss::T = typemax(T)
+	rel_chg::T = typemax(T)
     finished_early = false
-    rel_err = Inf
-    num_iterates = N
-    mu = μ
-    for j in 1:N
-        rel_err = abs((lss - lss_last) / lss_last)
-        if !isnan(rel_err) && j > 20 && rel_err <= relerr
+    num_iterates::Int64 = N
+    mu::T = μ
+    @inbounds for j in 1:N
+        rel_chg = abs((lss - lss_last) / lss_last)
+        if j > 20 && rel_chg <= relerr && lss <= lss_last
+			println("rel_chg = $rel_chg")
+			println("number of iterates = $j")
             finished_early = true
             num_iterates = j
             break
@@ -446,25 +450,28 @@ function fit(dnn::DNN{T}, X::Matrix{T}, Y::Matrix{T};
         lss_last = lss
         # Walk over each layer...
         for i in eachindex(dnn.layers)
-            brat = length(dnn.layers[i].M) / length(dnn.layers[i].b)
+			brat = one(T) * length(dnn.layers[i].M) / length(dnn.layers[i].b)
             # Treat the M and b parameters for this layer as constants.
             make_const!(dnn.layers[i])
 
             # Selectively treat the kth element of M as a variable so that
             # we may take the partial derivative with respect to M[k].
+			nn, mm = size(dnn.layers[i].M)
             for k in eachindex(dnn.layers[i].M)
-                set_md_pd!(dnn.layers[i], k, one(T))
-                ls = loss(dnn, X, Y)
-                set_md_pd!(dnn.layers[i], k, zero(T))
-                dnn.layers[i].M[k].v -= ls.d * mu
+
+               	set_md_pd!(dnn.layers[i], k, one(T))
+               	ls = loss(dnn, X, Y)
+               	set_md_pd!(dnn.layers[i], k, zero(T))
+               	dnn.layers[i].M[k].v -= ls.d * mu
             end
 
             # Selectively treat the kth element of b as a variable so that
             # we may take the partial derivative with respect to b[k].
+			nn = length(dnn.layers[i].b)
             for k in eachindex(dnn.layers[i].b)
-                set_bd_pd!(dnn.layers[i], k, one(T))
-                ls = loss(dnn, X, Y)
-                set_bd_pd!(dnn.layers[i], k, zero(T))
+               	set_bd_pd!(dnn.layers[i], k, one(T))
+               	ls = loss(dnn, X, Y)
+               	set_bd_pd!(dnn.layers[i], k, zero(T))
                 lss = ls.v
                 dnn.layers[i].b[k].v -= ls.d * brat * mu
             end
@@ -472,9 +479,10 @@ function fit(dnn::DNN{T}, X::Matrix{T}, Y::Matrix{T};
     end
     if finished_early
         println("Total number of iterates tried = $num_iterates from a max of $N.")
+        println("The relchg = $rel_chg.")
     else
         println("Used the maximum nunmber of iterates ($N).")
-        println("The relerr = $rel_err.")
+        println("The relchg = $rel_chg.")
     end
 end
 
@@ -872,6 +880,15 @@ function Base.:(*)(A::Matrix{AD{T}}, v::Vector{T}) where {T<:Number}
     return res
 end
 
+function L1(v::Vector{T}) where {T<:Number}
+	n = length(v)
+	s = zero(T)
+	for i in 1:n
+		s += abs(v[i])
+	end
+
+	return s
+end
 
 function L1(v::Vector{AD{T}}) where {T<:Number}
 	n = length(v)
@@ -883,6 +900,32 @@ function L1(v::Vector{AD{T}}) where {T<:Number}
 	return s
 end
 
+
+"""
+	softmax(x::Vector{T} [, τ=one(T)])
+
+Implements the `softmax` function.
+
+# Type Constraints
+- T <: Number
+
+# Arguments
+- x :: Vector{T}  -- The `AD` input vector.
+- τ :: T          -- The "temperature" parameter. 
+
+# Return
+::Vector{T} -- The output AD vector.
+"""
+function softmax(xs::Vector{T}, τ=one(T)::T) where {T<:Number}
+	n = length(xs)
+	im = argmax([x for x in xs])
+	zs = (xs .- xs[im]) / τ
+	zsm = zero(T)
+	for i in 1:n
+		zsm += exp(zs[i])
+	end
+	return exp.(zs) ./ zsm
+end
 
 """
 	softmax(x::Vector{AD{T}} [, τ=one(T)])
@@ -909,40 +952,6 @@ function softmax(xs::Vector{AD{T}}, τ=one(T)::T) where {T<:Number}
 	end
 	return exp.(zs) ./ zsm
 end
-
-
-"""
-	softmax2(x::Vector{AD{T}} [, τ=one(T)])
-
-Implements an `AD` version of a "scaled" `softmax` function.
-The softmax does not behave the same way when the input vector is scaled.
-Since we already have a scaling parameter, the intent here is to separate
-out the scaling parameter's effect from the the essential 
-"nature" (direction) of `x`. To this end, we normalize `x` by dividing
-by its ``L_1`` norm before apply the softmax function.
-
-# Type Constraints
-- T <: Number
-
-# Arguments
-- x :: Vector{AD{T}}  -- The `AD` input vector.
-- τ :: T              -- The "temperature" parameter. 
-
-# Return
-::Vector{AD{T}} -- The output AD vector.
-"""
-function softmax2(xs::Vector{AD{T}}, τ=one(T)::T) where {T<:Number}
-	n = length(xs)
-	nxs = xs ./ L1(xs)
-	im = argmax([x.v for x in nxs])
-	zs = (nxs .- nxs[im]) / τ
-	zsm = AD(zero(T), zero(T))
-	for i in 1:n
-		zsm += exp(zs[i])
-	end
-	return exp.(zs) ./ zsm
-end
-
 
 end # DNNS module
 
