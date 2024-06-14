@@ -479,6 +479,13 @@ function fit(dnn::DNN{T}, X::Matrix{T}, Y::Matrix{T};
 end
 
 
+# --------------------------------------------------------------------
+# ------------  Overload Math Functions for AD  ----------------------
+# --------------------------------------------------------------------
+# Binary operators below are defined on two potentially different
+# AD types: AD{T}, AD{S}.
+# Note: Given the promote_type rules above, we can then do:
+
 
 
 # --------------------------------------------------------------------
@@ -534,6 +541,11 @@ end
 # Unary minus
 function Base.:(-)(x::AD{T}) where {T<:Number}
     AD(-x.v, -x.d)
+end
+
+# abs
+function Base.abs(x::AD{T}) where {T<:Number}
+	AD(abs(x.v), x.v >= 0 ? x.d : -x.d)
 end
 
 # exp, log
@@ -759,31 +771,6 @@ function relur(x::AD{T}) where {T<:Number}
 end
 
 
-"""
-	softmax(x::Vector{AD{T}} [, τ=one(T)])
-
-Implements an `AD` version of the `softmax` function.
-
-# Type Constraints
-- T <: Number
-
-# Arguments
-- x :: Vector{AD{T}}  -- The `AD` input vector.
-- τ :: T              -- The "temperature" parameter. 
-
-# Return
-::Vector{AD{T}} -- The output AD vector.
-"""
-function softmax(xs::Vector{AD{T}}, τ=one(T)::T) where {T<:Number}
-	n = length(xs)
-	im = argmax([x.v for x in xs])
-	zs = (xs .- xs[im]) / τ
-	zsm = AD(zero(T), zero(T))
-	for i in 1:n
-		zsm += exp(zs[i])
-	end
-	return exp.(zs) ./ zsm
-end
 
 """
 	(PWL{T})(x::AD{T}) where {T<:Number}
@@ -885,6 +872,76 @@ function Base.:(*)(A::Matrix{AD{T}}, v::Vector{T}) where {T<:Number}
     return res
 end
 
+
+function L1(v::Vector{AD{T}}) where {T<:Number}
+	n = length(v)
+	s = zero(AD{T})
+	for i in 1:n
+		s += abs(v[i])
+	end
+
+	return s
+end
+
+
+"""
+	softmax(x::Vector{AD{T}} [, τ=one(T)])
+
+Implements an `AD` version of the `softmax` function.
+
+# Type Constraints
+- T <: Number
+
+# Arguments
+- x :: Vector{AD{T}}  -- The `AD` input vector.
+- τ :: T              -- The "temperature" parameter. 
+
+# Return
+::Vector{AD{T}} -- The output AD vector.
+"""
+function softmax(xs::Vector{AD{T}}, τ=one(T)::T) where {T<:Number}
+	n = length(xs)
+	im = argmax([x.v for x in xs])
+	zs = (xs .- xs[im]) / τ
+	zsm = AD(zero(T), zero(T))
+	for i in 1:n
+		zsm += exp(zs[i])
+	end
+	return exp.(zs) ./ zsm
+end
+
+
+"""
+	softmax2(x::Vector{AD{T}} [, τ=one(T)])
+
+Implements an `AD` version of a "scaled" `softmax` function.
+The softmax does not behave the same way when the input vector is scaled.
+Since we already have a scaling parameter, the intent here is to separate
+out the scaling parameter's effect from the the essential 
+"nature" (direction) of `x`. To this end, we normalize `x` by dividing
+by its ``L_1`` norm before apply the softmax function.
+
+# Type Constraints
+- T <: Number
+
+# Arguments
+- x :: Vector{AD{T}}  -- The `AD` input vector.
+- τ :: T              -- The "temperature" parameter. 
+
+# Return
+::Vector{AD{T}} -- The output AD vector.
+"""
+function softmax2(xs::Vector{AD{T}}, τ=one(T)::T) where {T<:Number}
+	n = length(xs)
+	nxs = xs ./ L1(xs)
+	im = argmax([x.v for x in nxs])
+	zs = (nxs .- nxs[im]) / τ
+	zsm = AD(zero(T), zero(T))
+	for i in 1:n
+		zsm += exp(zs[i])
+	end
+	return exp.(zs) ./ zsm
+end
 
 
 end # DNNS module
