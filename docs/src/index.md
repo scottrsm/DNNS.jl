@@ -7,11 +7,11 @@ CurrentModule = DNNS
 # Overview
 Below is a collection of structures and functions which are useful to create (D)eep (N)eural (N)etworks.
 One of the features of this package is the ability to do *Automatic Differentiation*.
-This is accomplished via the structure, `AD`. The basic arithematic functions as well
+This is accomplished via the structure, `AD`. The basic arithmatic functions as well
 as the power, abs, log, exponential, and all of the trigonometric functions from the base 
 package are overloaded by this package to work with `AD` "numbers".
 
-Additionaly, this package adds a notion of a piece-wise linear function via the struct, `PWL`.
+Additionally, this package adds a notion of a piece-wise linear function via the struct, `PWL`.
 This structure, as well as are the structures `DLayer` and `DNN`, has been instrumented so 
 that it can also serve as a function.
 
