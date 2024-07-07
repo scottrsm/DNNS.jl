@@ -1,14 +1,16 @@
 module PWLF
 
 include("AutoDiff.jl")
-using .AutoDiff
+import .AutoDiff: AD
 
 export PWL
+
+const X_REL_TOL = 1.0e-6
 
 """
     PWL{T}
 
-A structure representing a piece-wise linear function.
+A structure representing a piece-wise linear function on the Real line.
 
 In practice, one uses one of two outer constructors to create a `PWL` struct.
 
@@ -19,21 +21,21 @@ In practice, one uses one of two outer constructors to create a `PWL` struct.
 ## Fields
 - `xs :: Vector{T}`  -- The "x" values.
 - `ys :: Vector{T}`  -- The "y" values.
-- `ds :: Vector{T}`  -- The "slopes" of the segments.
+- `ds :: Vector{T}`  -- The "slopes" of the segments. Including the left most and right most slopes.
 - `n  :: Int`        -- The number of "x,y" values.
                          
 
 ## Public Constructors
-`PWL(xs::Vector{T}, y::T, ls::Vector{T})` 
+`PWL(xs::Vector{T}, y::T, ds::Vector{T})` 
 - `xs` -- The `x` coordinates in ascending order -- no duplicates.
 - `y`  -- The value of `y` corresponding to the first entry in `xs`.
-- `ls` -- The slopes of all "x" intervals as well as the "left" slope of the first
+- `ds` -- The slopes of all "x" intervals as well as the "left" slope of the first
           point and the "right" slope of the last point.
 
-`PWL(xs::Vector{T}, ys::Vector{T}, ls::Vector{T})`
+`PWL(xs::Vector{T}, ys::Vector{T}, ds::Vector{T})`
 - `xs` -- The `x` coordinates in ascending order -- no duplicates.
 - `ys` -- The `y` coordinates corresponding to each `x` value.
-- `ls` -- A 2-Vector consisting of the "left" slope of the first point and the "right"
+- `ds` -- A 2-Vector consisting of the "left" slope of the first point and the "right"
           slope of the last point.
 
 ## Examples
@@ -53,16 +55,13 @@ julia> pw2(2.5)
 struct PWL{T<:Number}
     xs::Vector{T}
     ys::Vector{T}
-    ls::Vector{T}
+    ds::Vector{T}
     n::Int
 
     # Inner Constructor.
-    function PWL{T}(nxs::Vector{T}, nys::Vector{T}, nls::Vector{T}) where {T<:Number}
-        try
-            zero(T) < one(T)
-        catch
-            throw(DomainError(T, "`PWD{T}`: (Inner Constructor) Type `$T` does not have a total ordering."))
-        end
+    function PWL{T}(nxs::Vector{T}, nys::Vector{T}, ndx::Vector{T}) where {T<:Number}
+		# Check that type, T, has a total ordering.
+		isTotalOrder(T) || throw(DomainError(T, "`PWD{T}`: (Inner Constructor) Type `$T` does not have a total ordering."))
 
         xmin, xmax = extrema(nxs)
         tol = X_REL_TOL * max(abs(xmin), abs(xmax))
@@ -72,8 +71,8 @@ struct PWL{T<:Number}
             throw(DomainError(nxs, "`PWD{T}`: (Inner Constructor) `nxs` is not sorted or has duplicates."))
         end
 
-        if length(nls) != 2
-            throw(DomainError(nls, "`PWD{T}`: (Inner Constructor) `nls` vector must have a length of 2."))
+        if length(ndx) != 2
+            throw(DomainError(nls, "`PWD{T}`: (Inner Constructor) `ndx` vector must have a length of 2."))
         end
 
         n = length(nxs)
@@ -89,20 +88,23 @@ struct PWL{T<:Number}
             nxs = convert.(W, nxs)
             nys = convert.(W, nys)
             dxs = convert.(W, dxs)
-            nls = convert.(W, nls)
+            ndx = convert.(W, ndx)
         end
 
-        ls = Vector{W}(undef, n + 1)
-        ls[1] = nls[1]
-        ls[n+1] = nls[2]
-        ls[2:n] = dxs
+        nds = Vector{W}(undef, n + 1)
+        nds[1]   = ndx[1]
+        nds[n+1] = ndx[2]
+        nds[2:n] = dxs
 
-        return new{W}(copy(nxs), copy(nys), ls, n)
+        return new{W}(copy(nxs), copy(nys), nds, n)
 
     end
 
     # Inner Constructor.
     function PWL{T}(nxs::Vector{T}, ny::T, nls::Vector{T}) where {T<:Number}
+		# Check that type, T, has a total ordering.
+		isTotalOrder(T) || throw(DomainError(T, "`PWD{T}`: (Inner Constructor) Type `$T` does not have a total ordering."))
+
         n = length(nxs)
         xmin, xmax = extrema(nxs)
         tol = X_REL_TOL * max(abs(xmin), abs(xmax))
@@ -140,7 +142,7 @@ end
 PWL(nxs::Vector{T}, ny::T, nls::Vector{T}) where {T<:Number} = PWL{T}(nxs, ny, nls)
 
 # Outer constructor.
-PWL(nxs::Vector{T}, nys::Vector{T}, nls::Vector{T}) where {T<:Number} = PWL{T}(nxs, nys, nls)
+PWL(nxs::Vector{T}, nys::Vector{T}, nds::Vector{T}) where {T<:Number} = PWL{T}(nxs, nys, nds)
 
 
 
@@ -166,7 +168,7 @@ function (p::PWL{T})(x::T) where {T<:Number}
 
     l += l == 0 ? 1 : 0
 
-    return p.ys[l] + p.ls[u] * (x - p.xs[l])
+    return p.ys[l] + p.ds[u] * (x - p.xs[l])
 end
 
 
@@ -192,10 +194,11 @@ function (p::PWL{T})(x::AD{T}) where {T<:Number}
 
     l += l == 0 ? 1 : 0
 
-    return AD(p.ys[l] + p.ls[u] * (x.v - p.xs[l]), p.ls[u] * x.d)
+    return AD(p.ys[l] + p.ds[u] * (x.v - p.xs[l]), p.ds[u] * x.d)
 end
 
-
+isTotalOrder(::Type{Complex})  = false
+isTotalOrder(::Type{<:Number}) = true
 
 end # module PWLF
 

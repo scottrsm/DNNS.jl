@@ -1,8 +1,5 @@
 module DNNS
 
-include("AutoDiff.jl")
-using .AutoDiff
-
 include("UtilFunc.jl")
 using .UtilFunc
 

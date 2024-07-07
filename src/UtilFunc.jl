@@ -1,9 +1,9 @@
 module UtilFunc
 
 include("AutoDiff.jl")
-using .AutoDiff
+import .AutoDiff: AD
 
-export sigmoid1, sigmoid2, sigmoid3, relu, relur, L1, softmax
+export AD, sigmoid1, sigmoid2, sigmoid3, relu, relur, L1, softmax
 
 #-------------------------------------------------------------------
 # ---------  Non Standard and Threshold Functions  -- --------------
@@ -13,7 +13,7 @@ export sigmoid1, sigmoid2, sigmoid3, relu, relur, L1, softmax
 	sigmoid1(x::AD{T})
 
 Implements an `AD` version of the standard "exponential" sigmoid function.
-j
+
 # Type Constraints
 - T <: Number
 
