@@ -17,8 +17,6 @@ that it can also serve as a function.
 
 - Structures:
     - `PWL:` A structure representing a piece-wise linear function.
-    - `AD:` A structure representing the value and its associated derivative. 
-            Such a structure is used to compute "Automatic Differentiation".
     - `DLayer:` A structure representing a single layer of a DNN.
     - `DNN:` A structure representing a Deep Neural Net which consists of 
             Some number of `DLayers`.
@@ -37,10 +35,6 @@ that it can also serve as a function.
 
 ## Data Structures
 
-
-```@docs
-AD
-```
 
 ```@docs
 PWL
