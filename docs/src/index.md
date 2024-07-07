@@ -23,7 +23,6 @@ that it can also serve as a function.
     - `DNN:` A structure representing a Deep Neural Net which consists of 
             Some number of `DLayers`.
 - Functions
-    - `dot`
     - `L1`
     - Non-linear Activation Functions
         - `sigmoid1`
@@ -91,10 +90,6 @@ relur
 
 ```@docs
 softmax
-```
-
-```@docs
-dot
 ```
 
 ## Functions
