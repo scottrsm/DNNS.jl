@@ -1,9 +1,9 @@
 module UtilFunc
 
 include("AutoDiff.jl")
-import .AutoDiff: AD
+import ..AutoDiff: AD
 
-export AD, sigmoid1, sigmoid2, sigmoid3, relu, relur, L1, softmax
+export sigmoid1, sigmoid2, sigmoid3, relu, relur, L1, softmax
 
 #-------------------------------------------------------------------
 # ---------  Non Standard and Threshold Functions  -- --------------

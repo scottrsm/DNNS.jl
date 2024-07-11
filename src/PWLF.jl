@@ -1,7 +1,7 @@
 module PWLF
 
 include("AutoDiff.jl")
-import .AutoDiff: AD
+import ..AutoDiff: AD
 
 export PWL
 

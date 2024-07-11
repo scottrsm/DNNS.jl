@@ -35,6 +35,9 @@ that it can also serve as a function.
 
 ## Data Structures
 
+```@docs
+AD
+```
 
 ```@docs
 PWL
