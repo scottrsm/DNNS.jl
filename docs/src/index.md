@@ -16,6 +16,7 @@ This structure, as well as are the structures `DLayer` and `DNN`, has been instr
 that it can also serve as a function.
 
 - Structures:
+    - `AD:` A structure used to implement `Automatic Differentiation`.
     - `PWL:` A structure representing a piece-wise linear function.
     - `DLayer:` A structure representing a single layer of a DNN.
     - `DNN:` A structure representing a Deep Neural Net which consists of 

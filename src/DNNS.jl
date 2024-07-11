@@ -4,10 +4,10 @@ include("AutoDiff.jl")
 import ..AutoDiff: AD
 
 include("UtilFunc.jl")
-using ..UtilFunc
+using .UtilFunc
 
 include("PWLF.jl")
-using ..PWLF
+using .PWLF
 
 export sigmoid1, sigmoid2, sigmoid3, relu, relur, L1, softmax
 export DLayer, DNN, loss, fit
