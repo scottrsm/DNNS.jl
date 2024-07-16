@@ -55,35 +55,39 @@ Base.promote_rule(::Type{AD{T}}, ::Type{S}) where {T<:Number,S<:Number} = AD{Bas
 Base.promote_rule(::Type{AD{T}}, ::Type{AD{S}}) where {T<:Number,S<:Number} = AD{Base.promote_type(T, S)}
 
 
-# --------------------------------------------------------------------
-# ------------  Overload Math Functions for AD  ----------------------
-# --------------------------------------------------------------------
-# Binary operators below are defined on two potentially different
-# AD types: AD{T}, AD{S}.
-# Note: Given the promote_type rules above, we can then do:
+#=------------------------------------------------------------------
+------------  Overload Math Functions for AD  ----------------------
+--------------------------------------------------------------------
+ Binary operators below are defined on two potentially different
+ AD types: AD{T}, AD{S}.
+ Note: Given the promote_type rules above, we can then do:
+ =#
 
 
 
-# --------------------------------------------------------------------
-# ------------  Overload Math Functions for AD  ----------------------
-# --------------------------------------------------------------------
-# Binary operators below are defined on two potentially different
-# AD types: AD{T}, AD{S}.
-# Note: Given the promote_type rules above, we can then do:
-#       (operator)(x::AD{T}, y::S})
-# The y variable can be promoted to AD{S}, then we have a method match.
-# The method (+)(x::AD{T}, AD(y)::AD{S}) gets called.
-# The first thing this function does is promote x,y to a promoted_type, W
-# (which is invisible in the code) and then a value of type AD{W} is returned.
-# --------------------------------------------------------------------
+#= -----------------------------------------------------------------
+------------  Overload Math Functions for AD  ----------------------
+--------------------------------------------------------------------
+ Binary operators below are defined on two potentially different
+ AD types: AD{T}, AD{S}.
+ Note: Given the promote_type rules above, we can then do:
+       (operator)(x::AD{T}, y::S})
+ The y variable can be promoted to AD{S}, then we have a method match.
+ The method (+)(x::AD{T}, AD(y)::AD{S}) gets called.
+ The first thing this function does is promote x,y to a promoted_type, W
+ (which is invisible in the code) and then a value of type AD{W} is returned.
+--------------------------------------------------------------------
+=#
 
 
-#-----------------------------------------------------------------
-# -----    Standard Scalar Functions/Operators      --------------
-#-----------------------------------------------------------------
+#=---------------------------------------------------------------
+ -----    Standard Scalar Functions/Operators      --------------
+-----------------------------------------------------------------
+=#
 
-# -----  Standard Binary Functions  --------------------------
-# Operators: +. -, *, /, ^
+#= -----  Standard Binary Functions  --------------------------
+     Operators: +. -, *, /, ^
+=#
 function Base.:(+)(x::AD{T}, y::AD{S}) where {T<:Number,S<:Number}
     xp, yp = promote(x, y)
     AD(xp.v + yp.v, xp.d + yp.d)
@@ -93,10 +97,6 @@ function Base.:(-)(x::AD{T}, y::AD{S}) where {T<:Number,S<:Number}
     xp, yp = promote(x, y)
     AD(xp.v - yp.v, xp.d - yp.d)
 end
-
-
-
-
 
 function Base.:(*)(x::AD{T}, y::AD{S}) where {T<:Number,S<:Number}
     xp, yp = promote(x, y)
@@ -244,9 +244,10 @@ Base.acot(x::AD{T}) where {T<:Number} = AD(acot(x.v), -one(T) / (one(T) + x.v * 
 
 
 
-#-------------------------------------------------------------------
-# ---------       Matrix/Vector Functions               ------------
-#-------------------------------------------------------------------
+#=-----------------------------------------------------------------
+---------       Matrix/Vector Functions               ------------
+-------------------------------------------------------------------
+=#
 
 Base.zero(::Type{AD{T}}) where {T<:Number} = AD(zero(T), zero(T))
 Base.zeros(::Type{AD{T}}, n::Int) where {T<:Number} = fill(AD(zero(T), zero(T), n))
