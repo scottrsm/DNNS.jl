@@ -20,7 +20,7 @@ that it can also serve as a function.
     - `PWL:` A structure representing a piece-wise linear function.
     - `DLayer:` A structure representing a single layer of a DNN.
     - `DNN:` A structure representing a Deep Neural Net which consists of 
-            Some number of `DLayers`.
+             Some number of `DLayers`.
 - Functions
     - `L1`
     - Non-linear Activation Functions
@@ -33,6 +33,8 @@ that it can also serve as a function.
     - Associated Learning Functions
         - `loss`
         - `fit`
+    - Functions on PWL structures
+        - `smooth`
 
 ## Data Structures
 
@@ -100,6 +102,9 @@ loss
 fit
 ```
 
+```@docs
+smooth
+```
 
 ## Index
 
