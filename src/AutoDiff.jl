@@ -15,7 +15,8 @@ import LinearAlgebra: dot
 """
     AD{T}
 
-Automatic differentiation structure.
+Automatic differentiation structure. Essentailly, an
+implementation of a *dual* number.
 
 Fields
 - v :: T -- The value of this structure.

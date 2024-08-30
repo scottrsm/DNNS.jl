@@ -165,7 +165,6 @@ struct PWL{T<:Number}
     end
 end
 
-
 # Outer Constructors.
 PWL(nxs::Vector{T}, ny::T, nls::Vector{T}) where {T<:Number} = PWL{T}(nxs, ny, nls)
 
