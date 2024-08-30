@@ -284,7 +284,8 @@ end
 
 
 
-
+# NOTE: We need to essentially duplicate this function below.
+# Extend Matrix/vector multiplication to AD{T}/AD{T}.
 function Base.:(*)(A::Matrix{AD{T}}, v::Vector{AD{T}}) where {T<:Number}
     n, m = size(A)
     if m != length(v)
@@ -304,6 +305,7 @@ function Base.:(*)(A::Matrix{AD{T}}, v::Vector{AD{T}}) where {T<:Number}
     return res
 end
 
+# Extend Matrix/vector multiplication to AD{T}/T.
 function Base.:(*)(A::Matrix{AD{T}}, v::Vector{T}) where {T<:Number}
     n, m = size(A)
     if m != length(v)
@@ -323,5 +325,11 @@ function Base.:(*)(A::Matrix{AD{T}}, v::Vector{T}) where {T<:Number}
     return res
 end
 
+
+# Extend isapprox to AD{T}.
+Base.isapprox(x::AD{T}, y::AD{T}; rtol) where {T <: Number} = (abs(x.d - y.d) <= rtol) && (abs(x.v - y.v) <= rtol)
+
 end # module AutoDiff
+
+
 
