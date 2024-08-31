@@ -51,7 +51,7 @@ end
 	@test y ≈  AD{Float64}(29.0, 36.0) rtol=TOL
 
 	x = AD{Float64}(1.0, 2.0)
-	y = AD{Int64}(3, 1)
+	y = AD{Float64}(3., 1.0)
 	@test x^y ≈  AD{Float64}(1.0, 6.0) rtol=TOL
 end
 
