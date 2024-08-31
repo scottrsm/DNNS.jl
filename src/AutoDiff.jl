@@ -249,6 +249,11 @@ Base.acot(x::AD{T}) where {T<:Number} = AD(acot(x.v), -one(T) / (one(T) + x.v * 
 ---------       Matrix/Vector Functions               ------------
 -------------------------------------------------------------------
 =#
+# NOTE: We need to essentially duplicate a few functions below.
+#       Julia is *NOT* covariant with respect to parametric types like Vector{T}.
+#       That is, it is *NOT* true that: Vector{S} <: Vector{T} if T <: S.
+#       We don't even have AD{T} <: T, but even if we did we still wouldn't have 
+#       Vector{AD{T}} <: Vector{T}.
 
 Base.zero(::Type{AD{T}}) where {T<:Number} = AD(zero(T), zero(T))
 Base.zeros(::Type{AD{T}}, n::Int) where {T<:Number} = fill(AD(zero(T), zero(T), n))
@@ -284,7 +289,6 @@ end
 
 
 
-# NOTE: We need to essentially duplicate this function below.
 # Extend Matrix/vector multiplication to AD{T}/AD{T}.
 function Base.:(*)(A::Matrix{AD{T}}, v::Vector{AD{T}}) where {T<:Number}
     n, m = size(A)

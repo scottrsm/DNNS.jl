@@ -14,4 +14,9 @@ It consists of 4 modules:
     values on *dual* numbers.
 - DNNS
     The top level module used to construct and fit Deep Neural Networks.
+    The main two methods provided are `fit` and `predict`.
+    The `fit` function uses a simplistic kind of stochastic batching to achieve 
+    the gradient descent. It effectively computes the partial derivative for each parameter.
+    Specifically, the `fit` function loops through each parameter, computes the associated partial
+    derivative, and uses that as the gradient to "descend" a small amount.
 

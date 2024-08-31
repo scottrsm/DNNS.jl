@@ -6,7 +6,7 @@ include("../src/AutoDiff.jl")
 import ..AutoDiff: AD
 
 include("../src/PWLF.jl")
-import ..PWLF
+import ..PWLF: PWL, merge
 
 include("../src/UtilFunc.jl")
 import ..UtilFunc
@@ -49,4 +49,18 @@ end
 
 	y = poly(AD{Float64}(2.0, 1.0)) 
 	@test y ≈  AD{Float64}(29.0, 36.0) rtol=TOL
+
+	x = AD{Float64}(1.0, 2.0)
+	y = AD{Int64}(3, 1)
+	@test x^y ≈  AD{Float64}(1.0, 6.0) rtol=TOL
 end
+
+# Check AutoDiff module
+@testset "PWLF (PWLF Calculations)" begin
+	p1 = PWL([1.0, 3.0, 4.0, 6.0], [2.0, 4.0, 6.0, 10.0], [0.0, 1.0])
+	p2 = PWL([1.0, 3.0, 4.0, 6.0], [3.0, 30.0, 3.0, 10.0], [-2.0, 5.0])
+	pm = PWLF.merge(p1, p2)
+
+	@test pm ≈ PWL([1.0, 3.0, 4.0, 6.0], [3.0, 30.0, 3.0, 10.0], [-2.0, 5.0]) rtol=TOL 
+end
+

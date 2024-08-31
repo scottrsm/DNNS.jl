@@ -5,6 +5,7 @@ import ..AutoDiff: AD
 
 import Base
 import Plots
+import OrderedCollections: OrderedDict
 
 export PWL, smooth
 
@@ -234,7 +235,9 @@ isTotalOrder(::Type{<:Number})    = true
 Merges two `PWL` objects into one.
 The new object contains all of the `x` (node) values.
 If the two objects have values for the same `x` (node) the
-corresponding `y` value will be the average of the two `y` values.
+corresponding `y` value will be the value from `p2`.
+If either end node of `p1` and `p2` coincide, take, for that node,
+the derivative value from the corresponding node of `p2`.
 
 # Type Constraints
 - `T <: Number`
@@ -247,19 +250,35 @@ corresponding `y` value will be the average of the two `y` values.
 - ::PWL{T} -- A combined `PWL` object.
 """
 function Base.merge(p1::PWL{T}, p2::PWL{T}) :: PWL{T} where {T <: Number}
-    d1 = OrderedDict(zip(p1.xs, p1.ys))
-    d2 = OrderedDict(zip(p2.xs, p2.ys))
+	# Merge the two vectors of `(x,y)` pairs from the two piece-wise linear functions. 
+	d1 = OrderedDict{T, T}(zip(p1.xs, p1.ys))
+	d2 = OrderedDict{T, T}(zip(p2.xs, p2.ys))
+
+	# In case of duplicate `x` nodes, `p2`'s value will be chosen.
     d = sort(merge(d1, d2))
-    for k in keys(d)
-		d[k] = (d[k] + d[k]) / T(2)
-    end
+
+	# Establish whose end points to use.
     p1_min = p1.xs[1]
     p1_max = p1.xs[end]
     p2_min = p2.xs[1]
     p2_max = p2.xs[end]
-    ds1 = p1.xs[1  ] < p2.xs[1  ] ? p1.ds[1  ] : p2.ds[1  ]
-    ds2 = p1.xs[end] < p2.xs[end] ? p2.ds[end] : p1.ds[end]
 
+	# If the smallest `x` node from `p1` is *strictly* less than the smallest `x` node from `p2`,
+	# 	pick `p1`'s first derivative; otherwise use `p2`'s first dirivative.
+    ds1 = p1.xs[1  ] < p2.xs[1  ] ? p1.ds[1  ] : p2.ds[1  ]
+
+	# If the largest `x` node from `p1` is *strictly* greater than the largest `x` node from `p2`,
+	# 	pick `p1`'s last derivative; otherwise use `p2`'s last dirivative.
+    ds2 = p1.xs[end] > p2.xs[end] ? p1.ds[end] : p2.ds[end]
+
+	# If the first `x` node of `p1` and `p2` coincide, take the first derivative value from `p2`.
+	ds1 = p1.xs[1  ] == p2.xs[1  ] ? p2.ds[1  ] : ds1
+
+	# If the last `x` node of `p1` and `p2` coincide, take the last derivative value from `p2`.
+    ds2 = p1.xs[end] == p2.xs[end] ? p2.ds[end] : ds2
+
+	# Use the constructor with the `x`, `y` values along with the
+	# end point derivatives.
     return PWL(collect(keys(d)), collect(values(d)), [ds1, ds2])
 end
 
@@ -342,6 +361,13 @@ function Plots.plot(p::PWL{T}; label=nothing, lc=:blue, ec=:red, lw=1, es=:dash)
     Plots.plot!([p.xs[end], p.xs[end] + dt], [p.ys[end], p.ys[end] + p.ds[end] * dt], lc=ec, ls=es, label=nothing)
 end
 
+# Extend isapprox to AD{T}.
+function Base.isapprox(p1::PWL{T}, p2::PWL{T}; rtol) where {T <: Number} 
+	(p1.n == p2.n) && 
+	all(abs.(p1.xs .- p2.xs) .<= rtol) && 
+	all(abs.(p1.ys .- p2.ys) .<= rtol) && 
+	all(abs.(p1.ds .- p2.ds) .<= rtol) 
+end
 
 end # module PWLF
 
