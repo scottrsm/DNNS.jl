@@ -55,7 +55,7 @@ end
 	@test x^y ≈  AD{Float64}(1.0, 6.0) rtol=TOL
 end
 
-# Check AutoDiff module
+# Check PWLF module
 @testset "PWLF (PWLF Calculations)" begin
 	p1 = PWL([1.0, 3.0, 4.0, 6.0], [2.0, 4.0, 6.0, 10.0], [0.0, 1.0])
 	p2 = PWL([1.0, 3.0, 4.0, 6.0], [3.0, 30.0, 3.0, 10.0], [-2.0, 5.0])

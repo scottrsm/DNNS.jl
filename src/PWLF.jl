@@ -264,11 +264,11 @@ function Base.merge(p1::PWL{T}, p2::PWL{T}) :: PWL{T} where {T <: Number}
     p2_max = p2.xs[end]
 
 	# If the smallest `x` node from `p1` is *strictly* less than the smallest `x` node from `p2`,
-	# 	pick `p1`'s first derivative; otherwise use `p2`'s first dirivative.
+	# 	pick `p1`'s first derivative; otherwise use `p2`'s first derivative.
     ds1 = p1.xs[1  ] < p2.xs[1  ] ? p1.ds[1  ] : p2.ds[1  ]
 
 	# If the largest `x` node from `p1` is *strictly* greater than the largest `x` node from `p2`,
-	# 	pick `p1`'s last derivative; otherwise use `p2`'s last dirivative.
+	# 	pick `p1`'s last derivative; otherwise use `p2`'s last derivative.
     ds2 = p1.xs[end] > p2.xs[end] ? p1.ds[end] : p2.ds[end]
 
 	# If the first `x` node of `p1` and `p2` coincide, take the first derivative value from `p2`.
@@ -303,40 +303,60 @@ The new `y` value is the average of the `y` values of the other two nodes.
 """
 function smooth(p, Δ)
     xl = p.xs[1]
-    n = length(p.xs)
+    n = p.n
+
+	# List of `x` indices who are within `Δ` of the previous `x`.
     is = Int[]
+
+	# Populate `is`.
     for i in 2:n
-        if p.xs[i] - xl < Δ
+		if p.xs[i] - p.xs[i-1] < Δ
             push!(is, i)
         end
     end
-    cnt = 0
-    li = 0
-    for i in 1:length(is)
-        if i == 1 && li != 1
-            cnt += 1
-        end
-        li = i
-    end
-    xs = Vector{Float64}(undef, n - cnt)
-    ys = Vector{Float64}(undef, n - cnt)
-    j = 1
-    i = 1
-    while i <= n
-        if i in is
-            xs[j] = (p.xs[i] + p.xs[i-1]) / 2.0
-            ys[j] = (p.ys[i] + p.ys[i-1]) / 2.0
-            i += 1
-        else
+	
+	#
+	# We will create new vectors, `x`, `y`, for the new smoothed PWL.
+	#
+	# Compute, `nis`  -- the reduction in size of the new vectors.
+	dx = diff(is)
+	dxx = diff(dx)
+
+	# Count the consecutive indices in `is`.
+	n1 = length(findall(x -> x == 1, dx))
+
+	# Count the number of adjacent consecutive indices in `is`.
+	n2 = length(findall(x -> x == 0, dxx))
+  
+	# Reduction value.
+	nis = n1 - n2
+
+	# Create `x`, `y` vectors for new PWL.
+    xs = Vector{Float64}(undef, n - nis)
+    ys = Vector{Float64}(undef, n - nis)
+
+	# Populate the new `x`, `y` vectors. 
+    j = 1 # counter for the placement of values in new `x,y` vectors.
+    for i in 1:n
+		# If `i+1` is in `is`, new node is an average of next node.
+        if i+1 i ∈ is
+            xs[j] = (p.xs[i] + p.xs[i+1]) / 2.0
+            ys[j] = (p.ys[i] + p.ys[i+1]) / 2.0
+		# If no close next node AND previous node was close, pause `j`.
+		# End of consecutive run.
+		elseif i ∈ is
+			j -= 1
+        else # Otherwise, take the node as is.
             xs[j] = p.xs[i]
             ys[j] = p.ys[i]
         end
         j += 1
-        i += 1
     end
 
+	# Return the new (potentially) smoothed PWL.
     return PWL(xs, ys, [p.ds[1], p.ds[end]])
 end
+
 
 """
 	plot(p::PWL{T}; <keywords>)
