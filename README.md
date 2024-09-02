@@ -8,7 +8,7 @@ It consists of 4 modules:
     polynomials.
     Finally, the chain rule as well as matrix/vector multiplication is supported.
 - PWLF
-    An implementation of piece-wise liner functions. This includes their values on *dual* numbers.
+    An implementation of piece-wise linear functions. This includes their values on *dual* numbers.
 - UtilFunc
     An implementation of non-linear functions used when computing neural nets. Again, this includes their 
     values on *dual* numbers.
