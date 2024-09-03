@@ -78,13 +78,8 @@ struct PWL{T<:Number}
         xmin, xmax = extrema(nxs)
         tol = X_REL_TOL * max(abs(xmin), abs(xmax))
 
-		# Check that `nxs` is in strict increasing order.
-        n = length(nxs)
-        if any(diff(nxs) .- tol .<= zero(T))
-            throw(DomainError(nxs, "`PWD{T}`: (Inner Constructor) `nxs` is not a strictly increasing sequence."))
-        end
-
 		# Check that `nxs` has length >= 2.
+        n = length(nxs)
         if n < 2
             throw(DomainError(nxs, "`PWD{T}`: (Inner Constructor) `nxs` vector must have a length of at least 2."))
         end
@@ -93,10 +88,10 @@ struct PWL{T<:Number}
         if n != length(nys)
             throw(DomainError(nys, "`PWD{T}`: (Inner Constructor) `nxs` and `nys` vectors must have the same length."))
         end
-		
-		# Check that the length of `ndx` is 2.
-        if length(ndx) != 2
-			throw(DomainError(nys, "`PWD{T}`: (Inner Constructor) The length of `ndx` must have length 2."))
+
+		# Check that `nxs` is in strict increasing order.
+        if any(diff(nxs) .- tol .<= zero(T))
+            throw(DomainError(nxs, "`PWD{T}`: (Inner Constructor) `nxs` is not a strictly increasing sequence."))
         end
 
         # Compute the interior slopes.
@@ -290,6 +285,7 @@ Potentially smooths the `PWL` object by combining adjacent `x` nodes
 if the distance between them is less than Δ.
 The new `x` node replaces the other two and is half way between the other nodes.
 The new `y` value is the average of the `y` values of the other two nodes.
+The function returns a new (potentially) smoothed `PWL` struct.
 
 # Type Constraints
 - `T <: Number`
@@ -299,7 +295,7 @@ The new `y` value is the average of the `y` values of the other two nodes.
 - `Δ::T`      -- The smoothing window.
 
 # Returns
-- `::PWL{T}` -- New, potentially smoothed `PWL` object.
+- `::PWL{T}` -- New, potentially smoothed `PWL` struct.
 """
 function smooth(p, Δ)
     xl = p.xs[1]
@@ -315,6 +311,11 @@ function smooth(p, Δ)
         end
     end
 	
+	# If none of the points are close enough to warrent smoothing, return a copy of `p`.
+	if length(is) == 0
+		return deepcopy(p)
+	end
+
 	#
 	# We will create new vectors, `x`, `y`, for the new smoothed PWL.
 	#
