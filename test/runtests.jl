@@ -59,8 +59,10 @@ end
 @testset "PWLF (PWLF Calculations)" begin
 	p1 = PWL([1.0, 3.0, 4.0, 6.0], [2.0, 4.0, 6.0, 10.0], [0.0, 1.0])
 	p2 = PWL([1.0, 3.0, 4.0, 6.0], [3.0, 30.0, 3.0, 10.0], [-2.0, 5.0])
-	pm = PWLF.merge(p1, p2)
+	pm = merge(p1, p2)
+	ps = PWLF.smooth(pm, 1.5)
 
-	@test pm ≈ PWL([1.0, 3.0, 4.0, 6.0], [3.0, 30.0, 3.0, 10.0], [-2.0, 5.0]) rtol=TOL 
+	@test pm ≈ PWL([1.0, 3.0, 4.0, 6.0], [3.0, 30.0, 3.0, 10.0], [-2.0, 5.0])  rtol=TOL 
+	@test ps ≈ PWL([1.0, 3.5, 6.0], [3.0, 16.5, 10.0], [-2.0, 5.0])            rtol=TOL
 end
 

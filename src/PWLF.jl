@@ -3,7 +3,7 @@ module PWLF
 include("AutoDiff.jl")
 import ..AutoDiff: AD
 
-import Base
+import Base: merge
 import Plots
 import OrderedCollections: OrderedDict
 
@@ -236,6 +236,7 @@ the derivative value from the corresponding node of `p2`.
 
 # Type Constraints
 - `T <: Number`
+- The type `T` must have a total ordering.
 
 # Arguments
 - `p1::PWL{T} -- First `PWL` object.
@@ -245,6 +246,9 @@ the derivative value from the corresponding node of `p2`.
 - ::PWL{T} -- A combined `PWL` object.
 """
 function Base.merge(p1::PWL{T}, p2::PWL{T}) :: PWL{T} where {T <: Number}
+	# Check that type, T, has a total ordering.
+	isTotalOrder(T) || throw(DomainError(T, "`merge`: Type `$T` does not have a total ordering."))
+
 	# Merge the two vectors of `(x,y)` pairs from the two piece-wise linear functions. 
 	d1 = OrderedDict{T, T}(zip(p1.xs, p1.ys))
 	d2 = OrderedDict{T, T}(zip(p2.xs, p2.ys))
@@ -289,6 +293,7 @@ The function returns a new (potentially) smoothed `PWL` struct.
 
 # Type Constraints
 - `T <: Number`
+- The type `T` must have a total ordering.
 
 # Arguments
 - `p::PWL{T}` -- PWL object.
@@ -297,7 +302,10 @@ The function returns a new (potentially) smoothed `PWL` struct.
 # Returns
 - `::PWL{T}` -- New, potentially smoothed `PWL` struct.
 """
-function smooth(p, Δ)
+function smooth(p::PWL{T}, Δ::T) where {T <: Number}
+	# Check that type, T, has a total ordering.
+	isTotalOrder(T) || throw(DomainError(T, "`smooth`: Type `$T` does not have a total ordering."))
+
     xl = p.xs[1]
     n = p.n
 
@@ -324,7 +332,7 @@ function smooth(p, Δ)
 	dxx = diff(dx)
 
 	# Count the consecutive indices in `is`.
-	n1 = length(findall(x -> x == 1, dx))
+	n1 = length(is) == 1 ? 1 : length(findall(x -> x == 1, dx))
 
 	# Count the number of adjacent consecutive indices in `is`.
 	n2 = length(findall(x -> x == 0, dxx))
@@ -333,16 +341,16 @@ function smooth(p, Δ)
 	nis = n1 - n2
 
 	# Create `x`, `y` vectors for new PWL.
-    xs = Vector{Float64}(undef, n - nis)
-    ys = Vector{Float64}(undef, n - nis)
+    xs = Vector{T}(undef, n - nis)
+    ys = Vector{T}(undef, n - nis)
 
 	# Populate the new `x`, `y` vectors. 
     j = 1 # counter for the placement of values in new `x,y` vectors.
     for i in 1:n
-		# If `i+1` is in `is`, new node is an average of next node.
-        if i+1 i ∈ is
-            xs[j] = (p.xs[i] + p.xs[i+1]) / 2.0
-            ys[j] = (p.ys[i] + p.ys[i+1]) / 2.0
+		# If `i+1` is in `is`, new node `is` an average of next node.
+        if i+1 ∈ is
+			xs[j] = (p.xs[i] + p.xs[i+1]) / T(2)
+			ys[j] = (p.ys[i] + p.ys[i+1]) / T(2)
 		# If no close next node AND previous node was close, pause `j`.
 		# End of consecutive run.
 		elseif i ∈ is
