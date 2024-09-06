@@ -2,7 +2,7 @@ module AutoDiff
 
 export AD
 
-import Base: promote_rule, show
+import Base: promote_rule, show, isless
 import Base: +, -, *, /, ^, exp, log
 import Base: sin, cos, tan, csc, sec, cot
 import Base: sinh, cosh, tanh, csch, sech, coth
@@ -50,6 +50,19 @@ AD(nv::T, nd::S) where {T<:Number,S<:Number} = AD(Base.promote(nv, nd)...)
 # Show values of AD.
 Base.show(io::IO, x::AD{T}) where {T<:Number} = print(io, "($(x.v), $(x.d))")
 
+# Place a total order on AD{T} where T <: Real.
+function Base.isless(x::AD{T}, y::AD{T}) where {T <: Real} 
+	if x.d < y.d
+		return true
+	end
+	if x.d > y.d
+		return false
+	end
+	if x.d == y.d && x.v < y.v
+		return true
+	end
+	return false
+end
 
 Base.promote_rule(::Type{AD{T}}, ::Type{T}) where {T<:Number} = AD{T}
 Base.promote_rule(::Type{AD{T}}, ::Type{S}) where {T<:Number,S<:Number} = AD{Base.promote_type(T, S)}

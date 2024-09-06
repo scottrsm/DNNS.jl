@@ -1,6 +1,6 @@
 # DNNS.jl
 A Julia package to do Deep Learning.
-It consists of 4 modules:
+It consists of 4 modules in the **src** directory:
 - AutoDiff
     This is essentially the implementation of a *dual* number system along with
     how to evaluate them with basic arithmatic, log, exponential, and trigonometric functions.
@@ -20,3 +20,5 @@ It consists of 4 modules:
     Specifically, the `fit` function loops through each parameter, computes the associated partial
     derivative, and uses that as the gradient to "descend" a small amount.
 
+A Jupyter notebook is also provided demonstrating the DNNS module.
+It creates a simple network to fit a noisy straight line.

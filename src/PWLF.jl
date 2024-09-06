@@ -220,9 +220,12 @@ function (p::PWL{T})(x::AD{T}) where {T<:Number}
     return AD(p.ys[l] + p.ds[u] * (x.v - p.xs[l]), p.ds[u] * x.d)
 end
 
-isTotalOrder(::Type{Complex})     = false
-isTotalOrder(::Type{AD{Complex}}) = false
-isTotalOrder(::Type{<:Number})    = true
+isTotalOrder(::Type{AD{Float64}})  = true
+isTotalOrder(::Type{AD{Float32}})  = true
+isTotalOrder(::Type{AD{Float16}})  = true
+isTotalOrder(::Type{AD{Rational}}) = true
+isTotalOrder(::Type{<:Real})       = true
+isTotalOrder(::Type{<:Number})     = false
 
 """
 	merge(p1::PWL{T}, p2::PWL{T})
