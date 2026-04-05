@@ -1,6 +1,5 @@
 module PWLF
 
-include("AutoDiff.jl")
 import ..AutoDiff: AD
 
 import Base: merge
@@ -73,7 +72,7 @@ struct PWL{T<:Number}
 		# Check Input Contract...
 		
 		# Check that type, T, has a total ordering.
-		isTotalOrder(T) || throw(DomainError(T, "`PWD{T}`: (Inner Constructor) Type `$T` does not have a total ordering."))
+		isTotalOrder(T) || throw(DomainError(T, "`PWL{T}`: (Inner Constructor) Type `$T` does not have a total ordering."))
 
         xmin, xmax = extrema(nxs)
         tol = X_REL_TOL * max(abs(xmin), abs(xmax))
@@ -81,17 +80,17 @@ struct PWL{T<:Number}
 		# Check that `nxs` has length >= 2.
         n = length(nxs)
         if n < 2
-            throw(DomainError(nxs, "`PWD{T}`: (Inner Constructor) `nxs` vector must have a length of at least 2."))
+            throw(DomainError(nxs, "`PWL{T}`: (Inner Constructor) `nxs` vector must have a length of at least 2."))
         end
 
 		# Check that `nxs` and `nys` have the same length.
         if n != length(nys)
-            throw(DomainError(nys, "`PWD{T}`: (Inner Constructor) `nxs` and `nys` vectors must have the same length."))
+            throw(DomainError(nys, "`PWL{T}`: (Inner Constructor) `nxs` and `nys` vectors must have the same length."))
         end
 
 		# Check that `nxs` is in strict increasing order.
         if any(diff(nxs) .- tol .<= zero(T))
-            throw(DomainError(nxs, "`PWD{T}`: (Inner Constructor) `nxs` is not a strictly increasing sequence."))
+            throw(DomainError(nxs, "`PWL{T}`: (Inner Constructor) `nxs` is not a strictly increasing sequence."))
         end
 
         # Compute the interior slopes.
@@ -120,7 +119,7 @@ struct PWL{T<:Number}
 		# Check the Input Contract...
 		#
 		# Check that type, T, has a total ordering.
-		isTotalOrder(T) || throw(DomainError(T, "`PWD{T}`: (Inner Constructor) Type `$T` does not have a total ordering."))
+		isTotalOrder(T) || throw(DomainError(T, "`PWL{T}`: (Inner Constructor) Type `$T` does not have a total ordering."))
 
         n = length(nxs)
         xmin, xmax = extrema(nxs)
@@ -128,17 +127,17 @@ struct PWL{T<:Number}
 
 		# Check that `nxs` has length >= 2.
         if n < 2
-            throw(DomainError(nls, "`PWD{T}`: (Inner Constructor) `nxs` vector must have a length of at least 2."))
+            throw(DomainError(nds, "`PWL{T}`: (Inner Constructor) `nxs` vector must have a length of at least 2."))
         end
 
 		# Check that `nxs` is in strict ascending order.
         if any(diff(nxs) .- tol .<= zero(T))
-            throw(DomainError(nxs, "`PWD{T}`: (Inner Constructor) `nxs` is not sorted or has duplicates."))
+            throw(DomainError(nxs, "`PWL{T}`: (Inner Constructor) `nxs` is not sorted or has duplicates."))
         end
 
-		# Check that the length of `dns` is 1 more than the length of `nxs'.
+		# Check that the length of `nds` is 1 more than the length of `nxs'.
         if n + 1 != length(nds)
-			throw(DomainError(nds, "`PWD{T}`: (Inner Constructor) The length of  `nds` must be 1 more than the length of `nxs`."))
+			throw(DomainError(nds, "`PWL{T}`: (Inner Constructor) The length of  `nds` must be 1 more than the length of `nxs`."))
         end
 
         nys = zeros(T, length(nxs))
@@ -147,17 +146,17 @@ struct PWL{T<:Number}
 
         if isbitstype(T)
             for i in 2:n
-                lasty += (nxs[i] - nxs[i-1]) * nls[i]
+                lasty += (nxs[i] - nxs[i-1]) * nds[i]
                 nys[i] = lasty
             end
         else
             for i in 2:n
-                lasty += (nxs[i] - nxs[i-1]) * nls[i]
+                lasty += (nxs[i] - nxs[i-1]) * nds[i]
                 nys[i] = deepcopy(lasty)
             end
         end
 
-        new(copy(nxs), nys, copy(nls), n)
+        new(copy(nxs), nys, copy(nds), n)
     end
 end
 

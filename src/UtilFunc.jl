@@ -1,6 +1,5 @@
 module UtilFunc
 
-include("AutoDiff.jl")
 import ..AutoDiff: AD
 
 export sigmoid1, sigmoid2, sigmoid3, relu, relur, L1, softmax
@@ -112,7 +111,7 @@ the boundary moves randomly around the natural input boundary of `0`,
 ::AD{T} -- The output AD value/derivative.
 """
 function relur(x::AD{T}) where {T<:Number}
-    d = x.v <= rand([-0.25, -0.1, -0.025, -0.01, 0.0, 0.01, 0.025, 0.1, 0.25]) ? zero(T) : one(T)
+    d = x.v <= T(rand([-0.25, -0.1, -0.025, -0.01, 0.0, 0.01, 0.025, 0.1, 0.25])) ? zero(T) : one(T)
     AD(x.v, d * x.d)
 end
 
@@ -156,7 +155,7 @@ Implements the `softmax` function.
 """
 function softmax(xs::Vector{T}, τ=one(T)::T) where {T<:Number}
 	n = length(xs)
-	im = argmax([x for x in xs])
+	im = argmax(xs)
 	zs = (xs .- xs[im]) / τ
 	zsm = zero(T)
 	for i in 1:n

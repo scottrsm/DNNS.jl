@@ -27,10 +27,10 @@ A structure representing one layer of a neural net.
 - The type `T` must have a total ordering.
 
 ## Fields
-- `M    :: Matrix{AD{T}}`    -- The "x" values.
-- `b    :: Vector{AD{T}}`    -- The "y" values.
-- `op   :: Function`         -- The "slopes" of the segments.
-- `dims :: Tuple{Int, Int}`  -- The number of "x,y" values.
+- `M    :: Matrix{AD{T}}`    -- The weight matrix.
+- `b    :: Vector{AD{T}}`    -- The bias vector.
+- `op   :: Function`         -- The activation (threshold) function.
+- `dims :: Tuple{Int, Int}`  -- The (output, input) dimensions.
                          
 
 ## Public Constructors
@@ -59,9 +59,9 @@ DLayer(Mn::Matrix{T}, bn::Vector{T}, opn) where {T<:Number} = DLayer{T}(Mn, bn, 
 
 
 """
-	(L::DLayer{T})(x::AD{T}) where {T <: Number}
-If `(M,N) = L.dims`, then we may treat the structure, `DLayer`, as
-a function: ``{\\cal R}^m \\mapsto {\\cal R}^n`` .
+	(L::DLayer{T})(x::AbstractVector) where {T <: Number}
+If `(N,M) = L.dims`, then we may treat the structure, `DLayer`, as
+a function: ``{\\cal R}^M \\mapsto {\\cal R}^N`` .
 
 Takes input `x` and passes it through the layer.
 
@@ -69,13 +69,13 @@ Takes input `x` and passes it through the layer.
 - `T <: Number`
 
 # Arguments
-- `x :: AD{T}`  -- An input value of dimension `N`.
+- `x :: AbstractVector`  -- An input vector of dimension `M`.
 
 # Return
-`::Vector{AD{T}}` of dimension `M`.
+`::Vector{AD{T}}` of dimension `N`.
 """
-function (L::DLayer{T})(x::AD{T}) where {T<:Number}
-	length(x) == L.dims[1] || throw(DomainError(L.dims, "DLayer (As Function): Vector `x` is incompatible with layer dimensions."))
+function (L::DLayer{T})(x::AbstractVector) where {T<:Number}
+	length(x) == L.dims[2] || throw(DomainError(L.dims, "DLayer (As Function): Vector `x` is incompatible with layer dimensions."))
 
     return L.op.(L.M * x .+ L.b)
 end
@@ -85,7 +85,7 @@ end
 """
     DNN{T<:Number}
 
-A structure representing one layer of a neural net. 
+A structure representing a neural network. 
 
 ## Type Constraints
 - `T <: Number`
@@ -136,7 +136,7 @@ function (dnn::DNN{T})(x::AbstractVector{T}) where {T<:Number}
 	length(x) == n || throw(DomainError(n, "DNN (as function): Matrix from first layer is incompatible with `x`."))
 
     for i in eachindex(dnn.layers)
-        x = dnn.layers[i].op.(dnn.layers[i].M * x .+ dnn.layers[i].b)
+        x = dnn.layers[i](x)
     end
 
     return x
@@ -200,7 +200,7 @@ function loss(dnn::DNN{T}, X::Matrix{T}, Y::Matrix{T}) where {T<:Number}
         s += LA.dot(df, df)
     end
 
-    return s
+    return s / T(m)
 end
 
 
@@ -271,10 +271,10 @@ function fit(dnn::DNN{T}, X::Matrix{T}, Y::Matrix{T};
                	set_bd_pd!(dnn.layers[i], k, one(T))
                	ls = loss(dnn, X, Y)
                	set_bd_pd!(dnn.layers[i], k, zero(T))
-                lss = ls.v
                 dnn.layers[i].b[k].v -= ls.d * brat * mu
             end
         end
+        lss = loss(dnn, X, Y).v
     end
     if finished_early
         println("Total number of iterates tried = $num_iterates from a max of $N.")

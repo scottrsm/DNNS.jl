@@ -7,7 +7,6 @@ import Base: +, -, *, /, ^, exp, log
 import Base: sin, cos, tan, csc, sec, cot
 import Base: sinh, cosh, tanh, csch, sech, coth
 import Base: asin, acos, atan, acsc, asec, acot
-import Base.Threads as TH
 
 import LinearAlgebra as LA
 import LinearAlgebra: dot
@@ -52,13 +51,13 @@ Base.show(io::IO, x::AD{T}) where {T<:Number} = print(io, "($(x.v), $(x.d))")
 
 # Place a total order on AD{T} where T <: Real.
 function Base.isless(x::AD{T}, y::AD{T}) where {T <: Real} 
-	if x.d < y.d
+	if x.v < y.v
 		return true
 	end
-	if x.d > y.d
+	if x.v > y.v
 		return false
 	end
-	if x.d == y.d && x.v < y.v
+	if x.v == y.v && x.d < y.d
 		return true
 	end
 	return false
@@ -161,35 +160,27 @@ Base.sin(x::AD{T}) where {T<:Number} = AD(sin(x.v), cos(x.v) * x.d)
 Base.cos(x::AD{T}) where {T<:Number} = AD(cos(x.v), -sin(x.v) * x.d)
 
 function Base.tan(x::AD{T}) where {T<:Number}
-    mx = mod(x.v, T(pi / 2))
-	mx == zero(T) && throw(DomainError(x.v, "AD: 'x.v' mod π / 2 == 0 is not a valid value for tan(x.v)."))
-    s = sec(mx)
-    t = tan(mx)
+    t = tan(x.v)
+    s = sec(x.v)
     AD(t, s * s * x.d)
 end
 
 # csc, sec, cot
 function Base.csc(x::AD{T}) where {T<:Number}
-    mx = mod(x.v, T(pi))
-	mx == zero(T) && throw(DomainError(x.v, "AD: 'x.v' mod π == 0 is not a valid value for csc(x.v)."))
-    ct = cot(mx)
-    c = csc(mx)
+    c = csc(x.v)
+    ct = cot(x.v)
     AD(c, -c * ct * x.d)
 end
 
 function Base.sec(x::AD{T}) where {T<:Number}
-    mx = mod(x.v, T(pi / 2))
-	mx == zero(T) && throw(DomainError(x.v, "AD: 'x.v' mod π / 2 == 0 is not a valid value for sec(x.v)."))
-    s = sec(mx)
-    t = tan(mx)
+    s = sec(x.v)
+    t = tan(x.v)
     AD(s, s * t * x.d)
 end
 
 function Base.cot(x::AD{T}) where {T<:Number}
-    mx = mod(x.v, T(pi))
-	mx == zero(T) && throw(DomainError(x.v, "AD: 'x.v' mod π == 0 is not a valid value for cot(x.v)."))
-    c = csc(mx)
-    ct = cot(mx)
+    c = csc(x.v)
+    ct = cot(x.v)
     AD(ct, -c * c * x.d)
 end
 
@@ -215,10 +206,9 @@ end
 
 # csch, sech, coth
 function Base.csch(x::AD{T}) where {T<:Number}
-    mx = mod(x.v, T(pi))
-	mx == zero(T) && throw(DomainError(x.v, "AD: 'x.v' mod π == 0 is not a valid value for csch(x.v)."))
-    ch = csch(mx)
-    ct = coth(mx)
+    x.v == zero(T) && throw(DomainError(x.v, "AD: 'x.v' == 0 is not a valid value for csch(x.v)."))
+    ch = csch(x.v)
+    ct = coth(x.v)
     AD(ch, -ch * ct * x.d)
 end
 
@@ -229,32 +219,31 @@ function Base.sech(x::AD{T}) where {T<:Number}
 end
 
 function Base.coth(x::AD{T}) where {T<:Number}
-    mx = mod(x.v, T(pi))
-	mx == zero(T) && throw(DomainError(x.v, "AD: 'x.v' mod π == 0 is not a valid value for coth(x.v)."))
-    ch = csch(mx)
-    ct = coth(mx)
+    x.v == zero(T) && throw(DomainError(x.v, "AD: 'x.v' == 0 is not a valid value for coth(x.v)."))
+    ch = csch(x.v)
+    ct = coth(x.v)
     AD(ct, -ch * ch * x.d)
 end
 
 
 
 # Inverse trig functions: asin, acos, atan.
-Base.asin(x::AD{T}) where {T<:Number} = AD(asin(x.v), one(T) / sqrt(one(T) - x.v * x.v))
-Base.acos(x::AD{T}) where {T<:Number} = AD(acos(x.v), -one(T) / sqrt(one(T) - x.v * x.v))
-Base.atan(x::AD{T}) where {T<:Number} = AD(atan(x.v), one(T) / (one(T) + x.v * x.v))
+Base.asin(x::AD{T}) where {T<:Number} = AD(asin(x.v), x.d / sqrt(one(T) - x.v * x.v))
+Base.acos(x::AD{T}) where {T<:Number} = AD(acos(x.v), -x.d / sqrt(one(T) - x.v * x.v))
+Base.atan(x::AD{T}) where {T<:Number} = AD(atan(x.v), x.d / (one(T) + x.v * x.v))
 
 # Inverse trig functions: acsc, asec, acot.
 function Base.acsc(x::AD{T}) where {T<:Number}
 	abs(x.v) < one(T) && throw(DomainError(x.v, "AD: '|x.v|' < 1 is not a valid value for asec(x.v)."))
-    AD(acsc(x.v), -one(T) / (x.v * sqrt(x.v * x.v - one(T))))
+    AD(acsc(x.v), -x.d / (x.v * sqrt(x.v * x.v - one(T))))
 end
 
 function Base.asec(x::AD{T}) where {T<:Number}
 	abs(x.v) < one(T) && throw(DomainError(x.v, "AD: '|x.v|' < 1 is not a valid value for asec(x.v)."))
-    AD(asec(x.v), one(T) / (abs(x.v) * sqrt(x.v * x.v - one(T))))
+    AD(asec(x.v), x.d / (abs(x.v) * sqrt(x.v * x.v - one(T))))
 end
 
-Base.acot(x::AD{T}) where {T<:Number} = AD(acot(x.v), -one(T) / (one(T) + x.v * x.v))
+Base.acot(x::AD{T}) where {T<:Number} = AD(acot(x.v), -x.d / (one(T) + x.v * x.v))
 
 
 
@@ -269,7 +258,7 @@ Base.acot(x::AD{T}) where {T<:Number} = AD(acot(x.v), -one(T) / (one(T) + x.v * 
 #       Vector{AD{T}} <: Vector{T}.
 
 Base.zero(::Type{AD{T}}) where {T<:Number} = AD(zero(T), zero(T))
-Base.zeros(::Type{AD{T}}, n::Int) where {T<:Number} = fill(AD(zero(T), zero(T), n))
+Base.zeros(::Type{AD{T}}, n::Int) where {T<:Number} = fill(AD(zero(T), zero(T)), n)
 
 
 function LA.dot(x::Vector{AD{T}}, y::Vector{AD{T}}) where {T<:Number}
