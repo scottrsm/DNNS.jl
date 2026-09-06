@@ -4,9 +4,12 @@ import Pkg
 Pkg.add("Documenter")
 using Documenter
 
+DocMeta.setdocmeta!(DNNS, :DocTestSetup, :(using DNNS); recursive=true)
+
 makedocs(
 	sitename = "DNNS",
 	format = Documenter.HTML(),
+	modules = [DNNS]
 	)
 
 	# Documenter can also automatically deploy documentation to gh-pages.

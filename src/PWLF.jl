@@ -49,11 +49,11 @@ Inputs are promoted to a common floating point type (integer inputs give a `PWL{
           slope of the last point.
 
 # Examples
-```jdoctest
-julia> # Create the same (in behavior) Piecewise linear functions in two ways:
-julia> pw1 = PWL([1.0, 2.0, 3.0], [2.0, 3.0, 4.0], [0.0, 5.0])
+Create the same (in behavior) piecewise linear function in two ways:
+```jldoctest
+julia> pw1 = PWL([1.0, 2.0, 3.0], [2.0, 3.0, 4.0], [0.0, 5.0]);
 
-julia> pw2 = PWL([1.0, 2.0, 3.0], 2.0, [0.0, 1.0, 1.0, 5.0])
+julia> pw2 = PWL([1.0, 2.0, 3.0], 2.0, [0.0, 1.0, 1.0, 5.0]);
 
 julia> pw1(2.5)
 3.5

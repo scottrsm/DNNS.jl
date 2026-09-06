@@ -15,10 +15,10 @@ It consists of 4 modules in the **src** directory:
 - DNNS
     The top level module used to construct and fit Deep Neural Networks.
     The main two methods provided are `loss` and `fit` (a fitted `DNN` is itself callable on an input vector).
-    The `fit` function uses a simplistic kind of stochastic batching to achieve 
-    the gradient descent. It effectively computes the partial derivative for each parameter.
-    Specifically, the `fit` function loops through each parameter, computes the associated partial
-    derivative, and uses that as the gradient to "descend" a small amount.
+    The `fit` function performs a simple full-batch, coordinate-wise gradient descent:
+    on every iteration it loops through each parameter of each layer, computes the associated
+    partial derivative of the loss over the whole data set using the `AutoDiff` dual numbers,
+    and uses that value to "descend" a small amount. There is no stochastic batching.
 
 A Jupyter notebook is also provided demonstrating the DNNS module.
 It creates a simple network to fit a noisy straight line.
