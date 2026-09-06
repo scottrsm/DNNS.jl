@@ -1,9 +1,9 @@
 module AutoDiff
 
-export AD
+export AD, _ad_matvec, _ad_dot
 
 import Base: promote_rule, show, isless
-import Base: +, -, *, /, ^, exp, log
+import Base: +, -, *, /, ^, exp, log, sqrt
 import Base: sin, cos, tan, csc, sec, cot
 import Base: sinh, cosh, tanh, csch, sech, coth
 import Base: asin, acos, atan, acsc, asec, acot
@@ -14,40 +14,52 @@ import LinearAlgebra: dot
 """
     AD{T}
 
-Automatic differentiation structure. Essentailly, an
-implementation of a *dual* number.
+Automatic differentiation structure. Essentially, an
+implementation of a *dual* number: the value of an expression together
+with the derivative of that expression with respect to one chosen variable.
+`AD` values are immutable; to change the value or derivative of a stored `AD`,
+store a new one (e.g. `v[i] = AD(v[i].v, d)`).
 
 Fields
 - v :: T -- The value of this structure.
 - d :: T -- The derivative at this value.
 
+Constructors
+- `AD(v)` / `AD(v; var=true)` -- A constant (derivative `0`), or the variable itself (derivative `1`).
+- `AD(v, d)` -- Value and derivative (promoted to a common type).
+- `AD{T}(v[, d])` -- Value and derivative converted to `T`.
+- `AD{T}(x::AD)` -- Convert an `AD` to element type `T`.
+
+Two `AD`s are `==` when both their values and derivatives are `==`;
+`isapprox` (`≈`) compares both fields with the usual `atol`/`rtol` keywords.
 """
-mutable struct AD{T<:Number} <: Number
+struct AD{T<:Number} <: Number
     v::T
     d::T
 
-    # Inner Constructors.
-    AD{T}(nv::T, nd::T) where {T<:Number} = new{T}(nv, nd)
-
-    AD{T}(nv::T) where {T<:Number} = new{T}(nv, zero(T))
-    function AD{T}(ad::AD{S}) where {T<:Number,S<:Number}
-        W = promote_type(S, T)
-        return new{W}(convert(W, ad.v), convert(W, ad.d))
-    end
-
-    function AD{T}(nv::S) where {T<:Number,S<:Number}
-        W = promote_type(S, T)
-        return AD{W}(convert(W, nv), zero(W))
-    end
+    # Inner Constructors: the type parameter is authoritative.
+    AD{T}(nv::Number, nd::Number) where {T<:Number} = new{T}(convert(T, nv), convert(T, nd))
+    AD{T}(nv::Number) where {T<:Number} = new{T}(convert(T, nv), zero(T))
+    AD{T}(ad::AD) where {T<:Number} = new{T}(convert(T, ad.v), convert(T, ad.d))
 end
 
 # Outer Constructors.
 AD(nv::T; var::Bool=false) where {T<:Number} = var ? AD{T}(nv, one(T)) : AD{T}(nv, zero(T))
 AD(nv::T, nd::T) where {T<:Number} = AD{T}(nv, nd)
 AD(nv::T, nd::S) where {T<:Number,S<:Number} = AD(Base.promote(nv, nd)...)
+AD(ad::AD) = ad
+
+# Conversions.
+Base.convert(::Type{AD{T}}, x::AD) where {T<:Number} = AD{T}(x)
+Base.convert(::Type{AD{T}}, x::Number) where {T<:Number} = AD{T}(x)
 
 # Show values of AD.
 Base.show(io::IO, x::AD{T}) where {T<:Number} = print(io, "($(x.v), $(x.d))")
+
+# Equality and hashing: structural (value and derivative).
+Base.:(==)(x::AD, y::AD) = x.v == y.v && x.d == y.d
+Base.isequal(x::AD, y::AD) = isequal(x.v, y.v) && isequal(x.d, y.d)
+Base.hash(x::AD, h::UInt) = hash(x.d, hash(x.v, hash(:AD, h)))
 
 # Place a total order on AD{T} where T <: Real.
 function Base.isless(x::AD{T}, y::AD{T}) where {T <: Real} 
@@ -67,15 +79,10 @@ Base.promote_rule(::Type{AD{T}}, ::Type{T}) where {T<:Number} = AD{T}
 Base.promote_rule(::Type{AD{T}}, ::Type{S}) where {T<:Number,S<:Number} = AD{Base.promote_type(T, S)}
 Base.promote_rule(::Type{AD{T}}, ::Type{AD{S}}) where {T<:Number,S<:Number} = AD{Base.promote_type(T, S)}
 
-
-#=------------------------------------------------------------------
-------------  Overload Math Functions for AD  ----------------------
---------------------------------------------------------------------
- Binary operators below are defined on two potentially different
- AD types: AD{T}, AD{S}.
- Note: Given the promote_type rules above, we can then do:
- =#
-
+Base.zero(::Type{AD{T}}) where {T<:Number} = AD{T}(zero(T), zero(T))
+Base.one(::Type{AD{T}}) where {T<:Number} = AD{T}(one(T), zero(T))
+Base.zero(::AD{T}) where {T<:Number} = zero(AD{T})
+Base.one(::AD{T}) where {T<:Number} = one(AD{T})
 
 
 #= -----------------------------------------------------------------
@@ -118,14 +125,22 @@ end
 
 function Base.:(/)(x::AD{T}, y::AD{S}) where {T<:Number,S<:Number}
     xp, yp = promote(x, y)
-	yp == zero(eltype(yp.v)) && throw(DomainError(y.v, "AD: 'y.v' == 0 is not a valid value for x.v / y.v."))
+    W = typeof(xp.v)
+	yp.v == zero(W) && throw(DomainError(y.v, "AD: 'y.v' == 0 is not a valid value for x.v / y.v."))
     AD(xp.v / yp.v, xp.d / yp.v - (xp.v * yp.d) / (yp.v * yp.v))
 end
 
 function Base.:(^)(x::AD{T}, y::AD{S}) where {T<:Number,S<:Number}
     xp, yp = promote(x, y)
-	x.v == zero(eltype(xp)) && throw(DomainError(x.v, "AD: 'x.v' == 0 is not a valid value for x.v^y.v."))
+    W = typeof(xp.v)
     t = xp.v^yp.v
+    if yp.d == zero(W)
+        # Constant exponent: the power rule, d/dx x^n = n x^(n-1). Valid for negative and zero bases.
+        d = yp.v == zero(W) ? zero(W) : yp.v * xp.v^(yp.v - one(W)) * xp.d
+        return AD(t, d)
+    end
+    # Variable exponent: d/dx x^y = x^y (y' log(x) + y x' / x), which needs x > 0.
+    (xp.v isa Real && xp.v <= zero(W)) && throw(DomainError(x.v, "AD: 'x.v' must be > 0 for x^y when the exponent is a variable."))
     AD(t, t * (yp.d * log(xp.v) + (yp.v * xp.d) / xp.v))
 end
 
@@ -141,7 +156,7 @@ function Base.abs(x::AD{T}) where {T<:Number}
 	AD(abs(x.v), x.v >= 0 ? x.d : -x.d)
 end
 
-# exp, log
+# exp, log, sqrt
 function Base.exp(x::AD{T}) where {T<:Number}
     et = exp(x.v)
     AD(et, et * x.d)
@@ -150,6 +165,12 @@ end
 function Base.log(x::AD{T}) where {T<:Number}
 	x.v == zero(T) && throw(DomainError(x.v, "AD: 'x.v' == 0 is not a valid value for log(x.v)."))
     AD(log(x.v), x.d / x.v)
+end
+
+function Base.sqrt(x::AD{T}) where {T<:Number}
+    s = sqrt(x.v)
+	s == zero(s) && throw(DomainError(x.v, "AD: 'x.v' == 0 is not a valid value for sqrt(x.v) (the derivative is infinite)."))
+    AD(s, x.d / (2 * s))
 end
 
 
@@ -234,7 +255,7 @@ Base.atan(x::AD{T}) where {T<:Number} = AD(atan(x.v), x.d / (one(T) + x.v * x.v)
 
 # Inverse trig functions: acsc, asec, acot.
 function Base.acsc(x::AD{T}) where {T<:Number}
-	abs(x.v) < one(T) && throw(DomainError(x.v, "AD: '|x.v|' < 1 is not a valid value for asec(x.v)."))
+	abs(x.v) < one(T) && throw(DomainError(x.v, "AD: '|x.v|' < 1 is not a valid value for acsc(x.v)."))
     AD(acsc(x.v), -x.d / (x.v * sqrt(x.v * x.v - one(T))))
 end
 
@@ -256,53 +277,40 @@ Base.acot(x::AD{T}) where {T<:Number} = AD(acot(x.v), -x.d / (one(T) + x.v * x.v
 #       That is, it is *NOT* true that: Vector{S} <: Vector{T} if T <: S.
 #       We don't even have AD{T} <: T, but even if we did we still wouldn't have 
 #       Vector{AD{T}} <: Vector{T}.
+#       (`zeros(AD{T}, n)` needs no special method: `Base.zeros` uses `zero(AD{T})`.)
 
-Base.zero(::Type{AD{T}}) where {T<:Number} = AD(zero(T), zero(T))
-Base.zeros(::Type{AD{T}}, n::Int) where {T<:Number} = fill(AD(zero(T), zero(T)), n)
-
-
-function LA.dot(x::Vector{AD{T}}, y::Vector{AD{T}}) where {T<:Number}
+function _ad_dot(x::AbstractVector, y::AbstractVector, ::Type{AD{T}}) where {T<:Number}
     n = length(x)
     if length(y) != n
-		throw(DomainError("Incompatible dims", "dot: Vector lengths are not the same."))
+		throw(DimensionMismatch("dot: Vector lengths are not the same ($n != $(length(y)))."))
     end
     s = zero(AD{T})
-    @inbounds @simd for i in 1:n
+    @inbounds for i in eachindex(x, y)
         s += x[i] * y[i]
     end
     return s
 end
 
-function LA.dot(x::Vector{AD{T}}, y::Vector{T}) where {T<:Number}
-    n = length(x)
-    if length(y) != n
-		throw(DomainError("Incompatible dims", "dot: Vector lengths are not the same."))
-    end
-    s = zero(AD{T})
-    @inbounds @simd for i in 1:n
-        s += x[i] * y[i]
-    end
-    return s
-end
-
-function LA.dot(x::Vector{T}, y::Vector{AD{T}}) where {T<:Number}
-    return LA.dot(y, x)
-end
+# (Concrete `Vector` signatures: `AbstractVector` ones would be ambiguous with LinearAlgebra's
+#  own methods for adjoints, transposes, etc. Internal code uses `_ad_dot` directly.)
+LA.dot(x::Vector{AD{T}}, y::Vector{AD{T}}) where {T<:Number} = _ad_dot(x, y, AD{T})
+LA.dot(x::Vector{AD{T}}, y::Vector{T}) where {T<:Number} = _ad_dot(x, y, AD{T})
+LA.dot(x::Vector{T}, y::Vector{AD{T}}) where {T<:Number} = _ad_dot(x, y, AD{T})
 
 
-
-# Extend Matrix/vector multiplication to AD{T}/AD{T}.
-function Base.:(*)(A::Matrix{AD{T}}, v::Vector{AD{T}}) where {T<:Number}
+# Matrix/vector multiplication for AD{T} matrices and any numeric vector (including views);
+# the result has element type AD{T}.
+function _ad_matvec(A::AbstractMatrix, v::AbstractVector, ::Type{AD{T}}) where {T<:Number}
     n, m = size(A)
     if m != length(v)
-		throw(DomainError("Incompatible dims", "*: Matrix A and vector v have incompatible sizes."))
+		throw(DimensionMismatch("*: Matrix A ($(size(A))) and vector v ($(length(v))) have incompatible sizes."))
     end
 
     res = Vector{AD{T}}(undef, n)
 
     @inbounds for i in 1:n
         s = zero(AD{T})
-        @simd for j in 1:m
+        for j in 1:m
             s += A[i, j] * v[j]
         end
         res[i] = s
@@ -311,31 +319,14 @@ function Base.:(*)(A::Matrix{AD{T}}, v::Vector{AD{T}}) where {T<:Number}
     return res
 end
 
-# Extend Matrix/vector multiplication to AD{T}/T.
-function Base.:(*)(A::Matrix{AD{T}}, v::Vector{T}) where {T<:Number}
-    n, m = size(A)
-    if m != length(v)
-		throw(DomainError("Incompatible dims", "*: Matrix A and vector v have incompatible sizes."))
-    end
+# Extend Matrix/vector multiplication to AD{T}/AD{T} and AD{T}/T (concrete types, see the note on `dot`).
+Base.:(*)(A::Matrix{AD{T}}, v::Vector{AD{T}}) where {T<:Number} = _ad_matvec(A, v, AD{T})
+Base.:(*)(A::Matrix{AD{T}}, v::Vector{T}) where {T<:Number} = _ad_matvec(A, v, AD{T})
 
-    res = Vector{AD{T}}(undef, n)
 
-    @inbounds for i in 1:n
-        s = zero(AD{T})
-        @simd for j in 1:m
-            s += A[i, j] * v[j]
-        end
-        res[i] = s
-    end
-
-    return res
+# Extend isapprox to AD{T}: both the value and the derivative must be approximately equal.
+function Base.isapprox(x::AD, y::AD; atol::Real=0, rtol::Real=Base.rtoldefault(typeof(x.v), typeof(y.v), atol), kwargs...)
+    return isapprox(x.v, y.v; atol, rtol, kwargs...) && isapprox(x.d, y.d; atol, rtol, kwargs...)
 end
-
-
-# Extend isapprox to AD{T}.
-Base.isapprox(x::AD{T}, y::AD{T}; rtol) where {T <: Number} = (abs(x.d - y.d) <= rtol) && (abs(x.v - y.v) <= rtol)
 
 end # module AutoDiff
-
-
-

@@ -1,7 +1,7 @@
 module DNNS
 
 include("AutoDiff.jl")
-import ..AutoDiff: AD
+import .AutoDiff: AD, _ad_matvec, _ad_dot
 
 include("UtilFunc.jl")
 using .UtilFunc
@@ -9,52 +9,53 @@ using .UtilFunc
 include("PWLF.jl")
 using .PWLF
 
+export AD, PWL, smooth
 export sigmoid1, sigmoid2, sigmoid3, relu, relur, L1, softmax
 export DLayer, DNN, loss, fit
 
-import StatsBase: sample
-import LinearAlgebra as LA
-import LinearAlgebra: dot
 
 
 """
-    DLayer{T<:Number}
+    DLayer{T<:Number, F}
 
 A structure representing one layer of a neural net. 
 
 ## Type Constraints
 - `T <: Number`
 - The type `T` must have a total ordering.
+- `F` is the type of the activation function (any callable).
 
 ## Fields
 - `M    :: Matrix{AD{T}}`    -- The weight matrix.
 - `b    :: Vector{AD{T}}`    -- The bias vector.
-- `op   :: Function`         -- The activation (threshold) function.
+- `op   :: F`                -- The activation (threshold) function, applied element-wise.
 - `dims :: Tuple{Int, Int}`  -- The (output, input) dimensions.
                          
 
 ## Public Constructors
-`DLayer(Mn::Matrix{T}, bn::Vector{T}, opn::Function)`
-- `Mn` -- A `MxN`weight matrix.
-- `bn` -- A `N`dimensional bias vector.
+`DLayer(Mn::AbstractMatrix{<:Number}, bn::AbstractVector{<:Number}, opn)`
+- `Mn` -- A `MxN` weight matrix (`N` inputs, `M` outputs).
+- `bn` -- An `M` dimensional bias vector.
 - `op` -- The non-linear threshold function.
+The element type `T` is the promotion of the element types of `Mn` and `bn`;
+`DLayer{T}(Mn, bn, opn)` converts both to `T`.
 """
-struct DLayer{T<:Number}
+struct DLayer{T<:Number, F}
     M::Matrix{AD{T}}
     b::Vector{AD{T}}
-    op::Function
+    op::F
     dims::Tuple{Int,Int}
 
-    function DLayer{T}(Mn::Matrix{T}, bn::Vector{T}, opn::Function) where {T<:Number}
+    function DLayer{T}(Mn::AbstractMatrix{<:Number}, bn::AbstractVector{<:Number}, opn::F) where {T<:Number, F}
         n, m = size(Mn)
-		length(bn) == n || throw(DomainError(m, "DLayer (Inner Constructor): Matrix, `Mn`, and vector, `bn`, are incompatible."))
+		length(bn) == n || throw(DomainError(length(bn), "DLayer (Inner Constructor): Matrix, `Mn` ($(size(Mn))), and vector, `bn` ($(length(bn))), are incompatible."))
 
-        return new{T}(AD{T}.(Mn), AD{T}.(bn), opn, (n, m))
+        return new{T, F}(AD{T}.(Mn), AD{T}.(bn), opn, (n, m))
     end
 end
 
 # Outer constructor
-DLayer(Mn::Matrix{T}, bn::Vector{T}, opn) where {T<:Number} = DLayer{T}(Mn, bn, opn)
+DLayer(Mn::AbstractMatrix{S}, bn::AbstractVector{U}, opn) where {S<:Number, U<:Number} = DLayer{promote_type(S, U)}(Mn, bn, opn)
 
 
 
@@ -75,9 +76,9 @@ Takes input `x` and passes it through the layer.
 `::Vector{AD{T}}` of dimension `N`.
 """
 function (L::DLayer{T})(x::AbstractVector) where {T<:Number}
-	length(x) == L.dims[2] || throw(DomainError(L.dims, "DLayer (As Function): Vector `x` is incompatible with layer dimensions."))
+	length(x) == L.dims[2] || throw(DomainError(length(x), "DLayer (As Function): Vector `x` ($(length(x))) is incompatible with layer dimensions ($(L.dims))."))
 
-    return L.op.(L.M * x .+ L.b)
+    return L.op.(_ad_matvec(L.M, x, AD{T}) .+ L.b)
 end
 
 
@@ -92,31 +93,31 @@ A structure representing a neural network.
 - The type `T` must have a total ordering.
 
 ## Fields
-- `layers :: Vector{DLayer{T}` -- The neural net layers.
+- `layers :: Vector{DLayer{T}}` -- The neural net layers.
                          
 
 ## Public Constructors
-`DNN(ls::Vector{DLayer{T}}`
-- `ls` -- A vector of DLayer.
+`DNN(ls::AbstractVector{<:DLayer{T}})`
+- `ls` -- A vector of DLayer (all with the same element type `T`).
 """
 struct DNN{T<:Number}
     layers::Vector{DLayer{T}}
 
-    function DNN{T}(ls::Vector{DLayer{T}}) where {T<:Number}
+    function DNN{T}(ls::AbstractVector{<:DLayer{T}}) where {T<:Number}
 		length(ls) != 0 || throw(DomainError(length(ls), "DNN (Inner Constructor): Length of ls is 0."))
-        for i in eachindex(ls[1:end-1])
-			ls[i].dims[1] == ls[i+1].dims[2] || throw(DomainError("Mismatch Dims", "DNN (Inner Constructor): DLayer incompatibility between layers $i and $(i+1)."))
+        for i in 1:(length(ls) - 1)
+			ls[i].dims[1] == ls[i+1].dims[2] || throw(DomainError((ls[i].dims, ls[i+1].dims), "DNN (Inner Constructor): DLayer incompatibility between layers $i and $(i+1)."))
         end
-        return new{T}(ls)
+        return new{T}(collect(DLayer{T}, ls))
     end
 end
 
 # Outer Constructor
-DNN(ls::Vector{DLayer{T}}) where {T<:Number} = DNN{T}(ls)
+DNN(ls::AbstractVector{<:DLayer{T}}) where {T<:Number} = DNN{T}(ls)
 
 
 """
-	(dnn::DNN{T})(x::AbstractVector{T}) where {T <: Number}
+	(dnn::DNN{T})(x::AbstractVector) where {T <: Number}
 Let `N = DNN.ls[1].dims[2]` and `M = DNN.ls[end].dims[1]`, then
 here we treat the structure `DNN` as a function: ``{\\cal R}^N \\mapsto {\\cal R}^M``
 Takes input `x` and passes it through each of the layers of `DNN`.
@@ -125,49 +126,49 @@ Takes input `x` and passes it through each of the layers of `DNN`.
 - `T <: Number`
 
 # Arguments
-- `x :: T`  -- An input value of dimension `N`.
+- `x :: AbstractVector`  -- An input vector of dimension `N` (numbers, or `AD` values).
 
 # Return
 `::Vector{AD{T}}` of dimension `M`.
 """
-function (dnn::DNN{T})(x::AbstractVector{T}) where {T<:Number}
+function (dnn::DNN{T})(x::AbstractVector) where {T<:Number}
 
     _, n = size(dnn.layers[1].M)
-	length(x) == n || throw(DomainError(n, "DNN (as function): Matrix from first layer is incompatible with `x`."))
+	length(x) == n || throw(DomainError(length(x), "DNN (as function): Matrix from first layer ($(dnn.layers[1].dims)) is incompatible with `x` ($(length(x)))."))
 
-    for i in eachindex(dnn.layers)
-        x = dnn.layers[i](x)
+    y = dnn.layers[1](x)
+    for i in 2:length(dnn.layers)
+        y = dnn.layers[i](y)
     end
 
-    return x
+    return y
 end
 
 
+# Treat all parameters of the layer as constants (zero derivative).
 function make_const!(l::DLayer{T}) where {T<:Number}
     t0 = zero(T)
-    n, m = l.dims
-    @inbounds for i in 1:n
-        l.b[i].d = t0
+    @inbounds for i in eachindex(l.b)
+        l.b[i] = AD{T}(l.b[i].v, t0)
     end
 
-    @inbounds for i in 1:n
-        for j in 1:m
-            l.M[i, j].d = t0
-        end
+    @inbounds for i in eachindex(l.M)
+        l.M[i] = AD{T}(l.M[i].v, t0)
     end
 
     return nothing
 end
 
+# Set the derivative of the `k`th bias entry.
 function set_bd_pd!(l::DLayer{T}, k::Int, d::T) where {T<:Number}
-    l.b[k].d = d
+    l.b[k] = AD{T}(l.b[k].v, d)
 
     return nothing
 end
 
-
+# Set the derivative of the `k`th weight entry (linear index).
 function set_md_pd!(l::DLayer{T}, k::Int, d::T) where {T<:Number}
-    l.M[k].d = d
+    l.M[k] = AD{T}(l.M[k].v, d)
 
     return nothing
 end
@@ -182,22 +183,24 @@ Computes the loss of the neural network given inputs, `X`, and outputs `Y`.
 - `T <: Number`
 
 # Arguments
-- `dnn :: DNN{T}`     -- A DNN layer.
-- `X   :: Matrix{T}`  -- The matrix of input values.
-- `Y   :: Matrix{T}`  -- The matrix of output values.
+- `dnn :: DNN{T}`             -- A DNN.
+- `X   :: AbstractMatrix`     -- The matrix of input values (one sample per column).
+- `Y   :: AbstractMatrix`     -- The matrix of output values (one sample per column).
 
 # Return
-`::AD{T}` -- The loss of the network
+`::AD{T}` -- The (mean squared) loss of the network.
 """
-function loss(dnn::DNN{T}, X::Matrix{T}, Y::Matrix{T}) where {T<:Number}
+function loss(dnn::DNN{T}, X::AbstractMatrix{<:Number}, Y::AbstractMatrix{<:Number}) where {T<:Number}
     _, m = size(X)
     _, my = size(Y)
-	m == my || throw(DomainError("Mismatch Dims", "`loss`: Dimensions of `X` and `Y` are incompatible."))
+	m == my || throw(DomainError((size(X), size(Y)), "`loss`: Dimensions of `X` and `Y` are incompatible."))
+	m > 0 || throw(DomainError(m, "`loss`: There must be at least one sample."))
+	size(Y, 1) == dnn.layers[end].dims[1] || throw(DomainError(size(Y, 1), "`loss`: The rows of `Y` do not match the output dimension of the network ($(dnn.layers[end].dims[1]))."))
 
     s = zero(AD{T})
     @inbounds for i in 1:m
         df = dnn(@view X[:, i]) .- (@view Y[:, i])
-        s += LA.dot(df, df)
+        s += _ad_dot(df, df, AD{T})
     end
 
     return s / T(m)
@@ -205,44 +208,53 @@ end
 
 
 """
-    fit(dnn, X, Y)
+    fit(dnn, X, Y; N=1000, relerr=1.0e-6, μ=1.0e-3, verbose=false)
 
-Adjusts the parameters of neural network, `dnn`, to get the best fit of 
-the data: `X`, `Y`. The parameters of the network are all paris of 
+Adjusts the parameters of neural network, `dnn`, **in place** to get the best fit of 
+the data: `X`, `Y` (gradient descent on the loss, with the gradient computed by
+forward mode automatic differentiation, one parameter at a time).
+The parameters of the network are all pairs of 
 matrices and biases for each layer in the network.
 
 # Type Constraints
 - `T <: Number`
 
 # Arguments
-- `dnn :: DNN{T}`     -- A DNN layer.
-- `X   :: Matrix{T}`  -- The matrix of input values.
-- `Y   :: Matrix{T}`  -- The matrix of output values.
+- `dnn :: DNN{T}`         -- The network to fit (modified).
+- `X   :: AbstractMatrix` -- The matrix of input values (one sample per column).
+- `Y   :: AbstractMatrix` -- The matrix of output values (one sample per column).
+
+# Keyword Arguments
+- `N::Int=1000`         -- The maximum number of iterations.
+- `relerr::Real=1.0e-6` -- Stop (after 20 iterations) once the relative change of the loss is at most `relerr`.
+- `μ::Real=1.0e-3`      -- The learning rate.
+- `verbose::Bool=false` -- If `true`, print the loss at each iteration and a summary at the end.
 
 # Return
-`::nothing`
+A named tuple `(loss, iterations, converged)`: the final loss, the number of
+iterations used, and whether the relative-change stopping criterion was met.
 """
-function fit(dnn::DNN{T}, X::Matrix{T}, Y::Matrix{T};
-		N=1000::Int64, relerr=T(1.0e-6)::T, μ=T(1.0e-3)::T, verbose=false::Bool) where {T<:Number}
+function fit(dnn::DNN{T}, X::AbstractMatrix{<:Number}, Y::AbstractMatrix{<:Number};
+		N::Int=1000, relerr::Real=1.0e-6, μ::Real=1.0e-3, verbose::Bool=false) where {T<:Number}
 
     _, m = size(X)
     _, my = size(Y)
 
-	m == my || throw(DomainError("Mismatch Dims", "`fit`: Arrays, `X`, and `Y`, are incompatible."))
+	m == my || throw(DomainError((size(X), size(Y)), "`fit`: Arrays, `X`, and `Y`, are incompatible."))
+	N >= 0  || throw(DomainError(N, "`fit`: The number of iterations must be non-negative."))
 
-	lss_last::T = typemax(T)
-	lss::T = typemax(T)
+	lss::T = loss(dnn, X, Y).v
+	lss_last::T = lss
 	rel_chg::T = typemax(T)
     finished_early = false
-    num_iterates::Int64 = N
-    mu::T = μ
+    num_iterates::Int = N
+    mu::T = T(μ)
+    relerr_t::T = T(relerr)
     @inbounds for j in 1:N
-        rel_chg = abs((lss - lss_last) / lss_last)
-        if j > 20 && rel_chg <= relerr && lss <= lss_last
-			println("rel_chg = $rel_chg")
-			println("number of iterates = $j")
+        rel_chg = lss_last == zero(T) ? zero(T) : abs((lss - lss_last) / lss_last)
+        if j > 20 && rel_chg <= relerr_t && lss <= lss_last
             finished_early = true
-            num_iterates = j
+            num_iterates = j - 1
             break
         end
         verbose && println("Iteration $(j): loss = $lss")
@@ -255,34 +267,34 @@ function fit(dnn::DNN{T}, X::Matrix{T}, Y::Matrix{T};
 
             # Selectively treat the kth element of M as a variable so that
             # we may take the partial derivative with respect to M[k].
-			nn, mm = size(dnn.layers[i].M)
             for k in eachindex(dnn.layers[i].M)
-
                	set_md_pd!(dnn.layers[i], k, one(T))
                	ls = loss(dnn, X, Y)
                	set_md_pd!(dnn.layers[i], k, zero(T))
-               	dnn.layers[i].M[k].v -= ls.d * mu
+               	dnn.layers[i].M[k] = AD{T}(dnn.layers[i].M[k].v - ls.d * mu, zero(T))
             end
 
             # Selectively treat the kth element of b as a variable so that
             # we may take the partial derivative with respect to b[k].
-			nn = length(dnn.layers[i].b)
             for k in eachindex(dnn.layers[i].b)
                	set_bd_pd!(dnn.layers[i], k, one(T))
                	ls = loss(dnn, X, Y)
                	set_bd_pd!(dnn.layers[i], k, zero(T))
-                dnn.layers[i].b[k].v -= ls.d * brat * mu
+                dnn.layers[i].b[k] = AD{T}(dnn.layers[i].b[k].v - ls.d * brat * mu, zero(T))
             end
         end
         lss = loss(dnn, X, Y).v
     end
-    if finished_early
-        println("Total number of iterates tried = $num_iterates from a max of $N.")
-        println("The relchg = $rel_chg.")
-    else
-        println("Used the maximum nunmber of iterates ($N).")
-        println("The relchg = $rel_chg.")
+    if verbose
+        if finished_early
+            println("Total number of iterates tried = $num_iterates from a max of $N.")
+        else
+            println("Used the maximum number of iterates ($N).")
+        end
+        println("The relative change of the loss = $rel_chg.")
     end
+
+    return (loss=lss, iterations=num_iterates, converged=finished_early)
 end
 
 end # DNNS module

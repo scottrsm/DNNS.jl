@@ -14,7 +14,7 @@ It consists of 4 modules in the **src** directory:
     values on *dual* numbers.
 - DNNS
     The top level module used to construct and fit Deep Neural Networks.
-    The main two methods provided are `fit` and `predict`.
+    The main two methods provided are `loss` and `fit` (a fitted `DNN` is itself callable on an input vector).
     The `fit` function uses a simplistic kind of stochastic batching to achieve 
     the gradient descent. It effectively computes the partial derivative for each parameter.
     Specifically, the `fit` function loops through each parameter, computes the associated partial

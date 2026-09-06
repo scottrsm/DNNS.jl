@@ -55,15 +55,19 @@ DNN
 ```
 
 ```@docs
-(PWL)(::T) where {T<:Number}
+(PWL)(::Real)
 ```
 
 ```@docs
-(DLayer)(::AD{T}) where {T <: Number}
+(PWL)(::AD)
 ```
 
 ```@docs
-(DNN)(::AbstractVector{T}) where {T <: Number}
+(DLayer)(::AbstractVector)
+```
+
+```@docs
+(DNN)(::AbstractVector)
 ```
 
 ## Non-linear Activation Functions
@@ -104,6 +108,18 @@ fit
 
 ```@docs
 smooth
+```
+
+```@docs
+Base.merge(::PWL{T}, ::PWL{T}) where {T <: Number}
+```
+
+```@docs
+DNNS.PWLF.Plots.plot(::PWL)
+```
+
+```@docs
+L1
 ```
 
 ## Index

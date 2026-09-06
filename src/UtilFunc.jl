@@ -1,6 +1,7 @@
 module UtilFunc
 
 import ..AutoDiff: AD
+import Random
 
 export sigmoid1, sigmoid2, sigmoid3, relu, relur, L1, softmax
 
@@ -95,43 +96,49 @@ function relu(x::AD{T}) where {T<:Number}
 end
 
 
+# The random offsets of the derivative boundary used by `relur`.
+const RELUR_OFFSETS = (-0.25, -0.1, -0.025, -0.01, 0.0, 0.01, 0.025, 0.1, 0.25)
+
 """
-	relur(x::AD{T})
+	relur(x::AD{T}; rng=Random.default_rng())
 
 Implements an `AD` version of a modified version of the relu function.
 The modification is that while the value of the `relur` is the same as `relu`,
 its derivative is not. The value of the derivative is `0` or `1`, however
-the boundary moves randomly around the natural input boundary of `0`,
+the boundary moves randomly around the natural input boundary of `0`
+(one of the offsets `±0.25, ±0.1, ±0.025, ±0.01, 0` is drawn from `rng`).
+
+# Type Constraints
 - T <: Number
 
 # Arguments
 - x   :: AD{T}  -- The `AD` input value.
 
+# Keyword Arguments
+- rng :: Random.AbstractRNG -- The random number generator used for the boundary offset.
+
 # Return
 ::AD{T} -- The output AD value/derivative.
 """
-function relur(x::AD{T}) where {T<:Number}
-    d = x.v <= T(rand([-0.25, -0.1, -0.025, -0.01, 0.0, 0.01, 0.025, 0.1, 0.25])) ? zero(T) : one(T)
+function relur(x::AD{T}; rng::Random.AbstractRNG=Random.default_rng()) where {T<:Number}
+    d = x.v <= T(rand(rng, RELUR_OFFSETS)) ? zero(T) : one(T)
     AD(x.v, d * x.d)
 end
 
 
+"""
+	L1(v::AbstractVector{T})
 
-function L1(v::Vector{T}) where {T<:Number}
-	n = length(v)
+The ``L_1`` norm (sum of absolute values) of the vector `v`; works for
+plain numbers and for `AD` values.
+
+# Return
+The sum of the absolute values of the elements of `v` (of the element type of `v`).
+"""
+function L1(v::AbstractVector{T}) where {T<:Number}
 	s = zero(T)
-	for i in 1:n
-		s += abs(v[i])
-	end
-
-	return s
-end
-
-function L1(v::Vector{AD{T}}) where {T<:Number}
-	n = length(v)
-	s = zero(AD{T})
-	for i in 1:n
-		s += abs(v[i])
+	for x in v
+		s += abs(x)
 	end
 
 	return s
@@ -139,58 +146,32 @@ end
 
 
 """
-	softmax(x::Vector{T} [, τ=one(T)])
+	softmax(x::AbstractVector{T} [, τ=1])
 
-Implements the `softmax` function.
+Implements the `softmax` function. Works for plain numbers and,
+as an `AD` version, for a vector of `AD` values.
 
 # Type Constraints
 - T <: Number
 
 # Arguments
-- x :: Vector{T}  -- The `AD` input vector.
-- τ :: T          -- The "temperature" parameter. 
+- x :: AbstractVector{T}  -- The input vector (plain numbers or `AD` values).
+- τ :: Real               -- The "temperature" parameter (`τ > 0`).
 
 # Return
-::Vector{T} -- The output AD vector.
+::Vector{T} -- The output vector.
 """
-function softmax(xs::Vector{T}, τ=one(T)::T) where {T<:Number}
-	n = length(xs)
+function softmax(xs::AbstractVector{T}, τ::Real=1) where {T<:Number}
+	τ > 0 || throw(DomainError(τ, "softmax: the temperature, `τ`, must be positive."))
+	isempty(xs) && throw(DomainError(0, "softmax: the input vector must not be empty."))
 	im = argmax(xs)
-	zs = (xs .- xs[im]) / τ
+	zs = (xs .- xs[im]) ./ τ
 	zsm = zero(T)
-	for i in 1:n
-		zsm += exp(zs[i])
-	end
-	return exp.(zs) ./ zsm
-end
-
-"""
-	softmax(x::Vector{AD{T}} [, τ=one(T)])
-
-Implements an `AD` version of the `softmax` function.
-
-# Type Constraints
-- T <: Number
-
-# Arguments
-- x :: Vector{AD{T}}  -- The `AD` input vector.
-- τ :: T              -- The "temperature" parameter. 
-
-# Return
-::Vector{AD{T}} -- The output AD vector.
-"""
-function softmax(xs::Vector{AD{T}}, τ=one(T)::T) where {T<:Number}
-	n = length(xs)
-	im = argmax([x.v for x in xs])
-	zs = (xs .- xs[im]) / τ
-	zsm = AD(zero(T), zero(T))
-	for i in 1:n
-		zsm += exp(zs[i])
+	for z in zs
+		zsm += exp(z)
 	end
 	return exp.(zs) ./ zsm
 end
 
 
 end # module UtilFunc
-
-

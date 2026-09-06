@@ -34,6 +34,8 @@ In practice, one uses one of two outer constructors to create a `PWL` struct.
 - `ds` -- `` |\\bf{ds}| = |\\bf{xs}| + 1``.
 
 # Public Constructors
+Inputs are promoted to a common floating point type (integer inputs give a `PWL{Float64}`).
+
 `PWL(xs::Vector{T}, y::T, ds::Vector{T})` 
 - `xs` -- The `x` coordinates in ascending order -- no duplicates.
 - `y`  -- The value of `y` corresponding to the first entry in `xs`.
@@ -67,15 +69,12 @@ struct PWL{T<:Number}
     n::Int
 
     # Inner Constructor.
-    function PWL{T}(nxs::Vector{T}, nys::Vector{T}, ndx::Vector{T}) where {T<:Number}
+    function PWL{T}(nxs::AbstractVector{T}, nys::AbstractVector{T}, ndx::AbstractVector{T}) where {T<:Number}
 
 		# Check Input Contract...
 		
 		# Check that type, T, has a total ordering.
 		isTotalOrder(T) || throw(DomainError(T, "`PWL{T}`: (Inner Constructor) Type `$T` does not have a total ordering."))
-
-        xmin, xmax = extrema(nxs)
-        tol = X_REL_TOL * max(abs(xmin), abs(xmax))
 
 		# Check that `nxs` has length >= 2.
         n = length(nxs)
@@ -88,7 +87,13 @@ struct PWL{T<:Number}
             throw(DomainError(nys, "`PWL{T}`: (Inner Constructor) `nxs` and `nys` vectors must have the same length."))
         end
 
+		# Check that `ndx` holds the two end slopes.
+        if length(ndx) != 2
+            throw(DomainError(ndx, "`PWL{T}`: (Inner Constructor) `nds` must hold exactly the two end slopes."))
+        end
+
 		# Check that `nxs` is in strict increasing order.
+        tol = _x_tol(nxs)
         if any(diff(nxs) .- tol .<= zero(T))
             throw(DomainError(nxs, "`PWL{T}`: (Inner Constructor) `nxs` is not a strictly increasing sequence."))
         end
@@ -96,41 +101,31 @@ struct PWL{T<:Number}
         # Compute the interior slopes.
         dxs = diff(nys) ./ diff(nxs)
 
-        W = eltype(dxs)
-        if W != T
-            nxs = convert.(W, nxs)
-            nys = convert.(W, nys)
-            dxs = convert.(W, dxs)
-            ndx = convert.(W, ndx)
-        end
-
-        nds = Vector{W}(undef, n + 1)
+        nds = Vector{T}(undef, n + 1)
         nds[1]   = ndx[1]
         nds[n+1] = ndx[2]
         nds[2:n] = dxs
 
-        return new{W}(copy(nxs), copy(nys), nds, n)
+        return new{T}(collect(T, nxs), collect(T, nys), nds, n)
 
     end
 
     # Inner Constructor.
-    function PWL{T}(nxs::Vector{T}, ny::T, nds::Vector{T}) where {T<:Number}
+    function PWL{T}(nxs::AbstractVector{T}, ny::T, nds::AbstractVector{T}) where {T<:Number}
 
 		# Check the Input Contract...
 		#
 		# Check that type, T, has a total ordering.
 		isTotalOrder(T) || throw(DomainError(T, "`PWL{T}`: (Inner Constructor) Type `$T` does not have a total ordering."))
 
-        n = length(nxs)
-        xmin, xmax = extrema(nxs)
-        tol = X_REL_TOL * max(abs(xmin), abs(xmax))
-
 		# Check that `nxs` has length >= 2.
+        n = length(nxs)
         if n < 2
-            throw(DomainError(nds, "`PWL{T}`: (Inner Constructor) `nxs` vector must have a length of at least 2."))
+            throw(DomainError(nxs, "`PWL{T}`: (Inner Constructor) `nxs` vector must have a length of at least 2."))
         end
 
 		# Check that `nxs` is in strict ascending order.
+        tol = _x_tol(nxs)
         if any(diff(nxs) .- tol .<= zero(T))
             throw(DomainError(nxs, "`PWL{T}`: (Inner Constructor) `nxs` is not sorted or has duplicates."))
         end
@@ -140,36 +135,43 @@ struct PWL{T<:Number}
 			throw(DomainError(nds, "`PWL{T}`: (Inner Constructor) The length of  `nds` must be 1 more than the length of `nxs`."))
         end
 
-        nys = zeros(T, length(nxs))
+        nys = zeros(T, n)
         lasty = ny
         nys[1] = lasty
 
-        if isbitstype(T)
-            for i in 2:n
-                lasty += (nxs[i] - nxs[i-1]) * nds[i]
-                nys[i] = lasty
-            end
-        else
-            for i in 2:n
-                lasty += (nxs[i] - nxs[i-1]) * nds[i]
-                nys[i] = deepcopy(lasty)
-            end
+        for i in 2:n
+            lasty += (nxs[i] - nxs[i-1]) * nds[i]
+            nys[i] = lasty
         end
 
-        new(copy(nxs), nys, copy(nds), n)
+        new{T}(collect(T, nxs), nys, collect(T, nds), n)
     end
 end
 
-# Outer Constructors.
-PWL(nxs::Vector{T}, ny::T, nls::Vector{T}) where {T<:Number} = PWL{T}(nxs, ny, nls)
+# The absolute tolerance used to decide whether two `x` nodes coincide.
+function _x_tol(xs::AbstractVector{T}) where {T<:Number}
+    xmin, xmax = extrema(xs)
+    return X_REL_TOL * max(abs(xmin), abs(xmax))
+end
 
-# Outer constructor.
-PWL(nxs::Vector{T}, nys::Vector{T}, nds::Vector{T}) where {T<:Number} = PWL{T}(nxs, nys, nds)
+# The common (floating point) element type of the inputs.
+_pwl_type(types...) = (W = promote_type(types...); typeof(one(W) / one(W)))
+
+# Outer Constructors: promote all inputs to a common floating point type.
+function PWL(nxs::AbstractVector{<:Number}, ny::Number, nls::AbstractVector{<:Number})
+    W = _pwl_type(eltype(nxs), typeof(ny), eltype(nls))
+    return PWL{W}(collect(W, nxs), W(ny), collect(W, nls))
+end
+
+function PWL(nxs::AbstractVector{<:Number}, nys::AbstractVector{<:Number}, nds::AbstractVector{<:Number})
+    W = _pwl_type(eltype(nxs), eltype(nys), eltype(nds))
+    return PWL{W}(collect(W, nxs), collect(W, nys), collect(W, nds))
+end
 
 
 
 """
-	(PWL{T})(x::T) where {T<:Number}
+	(PWL{T})(x::Real) where {T<:Number}
 
 Uses the structure `PWL` as a piece-wise linear function. 
 
@@ -177,12 +179,14 @@ Uses the structure `PWL` as a piece-wise linear function.
 - `T <: Number`
 
 # Arguments
-- `x :: T`  -- An input value.
+- `x :: Real`  -- An input value (converted to `T`).
 
 # Return
 `:: T`
 """
-function (p::PWL{T})(x::T) where {T<:Number}
+(p::PWL{T})(x::Real) where {T<:Number} = _pwl_eval(p, convert(T, x))
+
+function _pwl_eval(p::PWL{T}, x::T) where {T<:Number}
 
     idx = searchsorted(p.xs, x)
     u = first(idx)
@@ -208,7 +212,8 @@ Uses the structure `PWL` as a piece-wise linear function.
 # Return
 `:: AD{T}`
 """
-function (p::PWL{T})(x::AD{T}) where {T<:Number}
+function (p::PWL{T})(x::AD) where {T<:Number}
+    x = AD{T}(x)
 
     Idx = searchsorted(p.xs, x.v)
     u = first(Idx)
@@ -219,10 +224,7 @@ function (p::PWL{T})(x::AD{T}) where {T<:Number}
     return AD(p.ys[l] + p.ds[u] * (x.v - p.xs[l]), p.ds[u] * x.d)
 end
 
-isTotalOrder(::Type{AD{Float64}})  = true
-isTotalOrder(::Type{AD{Float32}})  = true
-isTotalOrder(::Type{AD{Float16}})  = true
-isTotalOrder(::Type{AD{Rational}}) = true
+isTotalOrder(::Type{AD{T}}) where {T<:Number} = isTotalOrder(T)
 isTotalOrder(::Type{<:Real})       = true
 isTotalOrder(::Type{<:Number})     = false
 
@@ -231,8 +233,9 @@ isTotalOrder(::Type{<:Number})     = false
 
 Merges two `PWL` objects into one.
 The new object contains all of the `x` (node) values.
-If the two objects have values for the same `x` (node) the
-corresponding `y` value will be the value from `p2`.
+If the two objects have values for the same `x` (node) -- nodes closer than
+the relative tolerance used by the `PWL` constructor count as the same -- the
+corresponding `x`, `y` values will be the values from `p2`.
 If either end node of `p1` and `p2` coincide, take, for that node,
 the derivative value from the corresponding node of `p2`.
 
@@ -252,11 +255,16 @@ function Base.merge(p1::PWL{T}, p2::PWL{T}) :: PWL{T} where {T <: Number}
 	isTotalOrder(T) || throw(DomainError(T, "`merge`: Type `$T` does not have a total ordering."))
 
 	# Merge the two vectors of `(x,y)` pairs from the two piece-wise linear functions. 
-	d1 = OrderedDict{T, T}(zip(p1.xs, p1.ys))
-	d2 = OrderedDict{T, T}(zip(p2.xs, p2.ys))
-
-	# In case of duplicate `x` nodes, `p2`'s value will be chosen.
-    d = sort(merge(d1, d2))
+	# In case of duplicate `x` nodes (within tolerance), `p2`'s node will be chosen.
+	tol = _x_tol(vcat(p1.xs, p2.xs))
+	d = OrderedDict{T, T}()
+	for (x, y) in zip(p1.xs, p1.ys)
+		any(x2 -> abs(x2 - x) <= tol, p2.xs) || (d[x] = y)
+	end
+	for (x, y) in zip(p2.xs, p2.ys)
+		d[x] = y
+	end
+    sort!(d)
 
 	# Establish whose end points to use.
     p1_min = p1.xs[1]
@@ -273,10 +281,10 @@ function Base.merge(p1::PWL{T}, p2::PWL{T}) :: PWL{T} where {T <: Number}
     ds2 = p1.xs[end] > p2.xs[end] ? p1.ds[end] : p2.ds[end]
 
 	# If the first `x` node of `p1` and `p2` coincide, take the first derivative value from `p2`.
-	ds1 = p1.xs[1  ] == p2.xs[1  ] ? p2.ds[1  ] : ds1
+	ds1 = abs(p1.xs[1  ] - p2.xs[1  ]) <= tol ? p2.ds[1  ] : ds1
 
 	# If the last `x` node of `p1` and `p2` coincide, take the last derivative value from `p2`.
-    ds2 = p1.xs[end] == p2.xs[end] ? p2.ds[end] : ds2
+    ds2 = abs(p1.xs[end] - p2.xs[end]) <= tol ? p2.ds[end] : ds2
 
 	# Use the constructor with the `x`, `y` values along with the
 	# end point derivatives.
@@ -289,8 +297,9 @@ end
 
 Potentially smooths the `PWL` object by combining adjacent `x` nodes
 if the distance between them is less than Δ.
-The new `x` node replaces the other two and is half way between the other nodes.
-The new `y` value is the average of the `y` values of the other two nodes.
+A run of consecutive nodes, each closer than Δ to the previous one, is replaced by
+a single node whose `x` and `y` values are the averages of the `x` and `y`
+values of the nodes in the run. (For two close nodes the new node is half way between them.)
 The function returns a new (potentially) smoothed `PWL` struct.
 
 # Type Constraints
@@ -311,57 +320,26 @@ function smooth(p::PWL{T}, Δ::T) where {T <: Number}
     xl = p.xs[1]
     n = p.n
 
-	# List of `x` indices who are within `Δ` of the previous `x`.
-    is = Int[]
-
-	# Populate `is`.
-    for i in 2:n
-		if p.xs[i] - p.xs[i-1] < Δ
-            push!(is, i)
-        end
-    end
-	
-	# If none of the points are close enough to warrent smoothing, return a copy of `p`.
-	if length(is) == 0
+	# If none of the points are close enough to warrant smoothing, return a copy of `p`.
+	if !any(i -> p.xs[i] - p.xs[i-1] < Δ, 2:n)
 		return deepcopy(p)
 	end
 
-	#
-	# We will create new vectors, `x`, `y`, for the new smoothed PWL.
-	#
-	# Compute, `nis`  -- the reduction in size of the new vectors.
-	dx = diff(is)
-	dxx = diff(dx)
-
-	# Count the consecutive indices in `is`.
-	n1 = length(is) == 1 ? 1 : length(findall(x -> x == 1, dx))
-
-	# Count the number of adjacent consecutive indices in `is`.
-	n2 = length(findall(x -> x == 0, dxx))
-  
-	# Reduction value.
-	nis = n1 - n2
-
-	# Create `x`, `y` vectors for new PWL.
-    xs = Vector{T}(undef, n - nis)
-    ys = Vector{T}(undef, n - nis)
-
-	# Populate the new `x`, `y` vectors. 
-    j = 1 # counter for the placement of values in new `x,y` vectors.
-    for i in 1:n
-		# If `i+1` is in `is`, new node `is` an average of next node.
-        if i+1 ∈ is
-			xs[j] = (p.xs[i] + p.xs[i+1]) / T(2)
-			ys[j] = (p.ys[i] + p.ys[i+1]) / T(2)
-		# If no close next node AND previous node was close, pause `j`.
-		# End of consecutive run.
-		elseif i ∈ is
-			j -= 1
-        else # Otherwise, take the node as is.
-            xs[j] = p.xs[i]
-            ys[j] = p.ys[i]
+	# Build the new `x`, `y` vectors: walk the nodes, gathering runs of close nodes
+	# and replacing each run by the average of its nodes.
+    xs = T[]
+    ys = T[]
+    i = 1
+    while i <= n
+        # Find the end, `k`, of the run of close nodes starting at `i`.
+        k = i
+        while k < n && p.xs[k+1] - p.xs[k] < Δ
+            k += 1
         end
-        j += 1
+        cnt = T(k - i + 1)
+        push!(xs, sum(@view p.xs[i:k]) / cnt)
+        push!(ys, sum(@view p.ys[i:k]) / cnt)
+        i = k + 1
     end
 
 	# Return the new (potentially) smoothed PWL.
@@ -386,19 +364,22 @@ Plots a `PWL` object.
 
 """
 function Plots.plot(p::PWL{T}; label=nothing, lc=:blue, ec=:red, lw=1, es=:dash) where {T <: Number}
-    Plots.plot(p.xs, p.ys, label=label, lw=2)
+    Plots.plot(p.xs, p.ys, label=label, lw=lw, lc=lc)
     dt = convert(T, 0.1) * (p.xs[end] - p.xs[1])
     Plots.plot!([p.xs[1] - dt, p.xs[1]], [p.ys[1], p.ys[1] - p.ds[1] * dt], lc=ec, ls=es, label=nothing)
     Plots.plot!([p.xs[end], p.xs[end] + dt], [p.ys[end], p.ys[end] + p.ds[end] * dt], lc=ec, ls=es, label=nothing)
 end
 
-# Extend isapprox to AD{T}.
-function Base.isapprox(p1::PWL{T}, p2::PWL{T}; rtol) where {T <: Number} 
+# Extend isapprox to PWL{T}: same number of nodes, and approximately equal nodes, values and slopes.
+function Base.isapprox(p1::PWL, p2::PWL; kwargs...)
 	(p1.n == p2.n) && 
-	all(abs.(p1.xs .- p2.xs) .<= rtol) && 
-	all(abs.(p1.ys .- p2.ys) .<= rtol) && 
-	all(abs.(p1.ds .- p2.ds) .<= rtol) 
+	isapprox(p1.xs, p2.xs; kwargs...) && 
+	isapprox(p1.ys, p2.ys; kwargs...) && 
+	isapprox(p1.ds, p2.ds; kwargs...) 
 end
+
+# Structural equality.
+Base.:(==)(p1::PWL, p2::PWL) = p1.n == p2.n && p1.xs == p2.xs && p1.ys == p2.ys && p1.ds == p2.ds
 
 end # module PWLF
 
