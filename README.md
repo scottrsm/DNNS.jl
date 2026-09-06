@@ -1,6 +1,7 @@
 # DNNS.jl
 
-[![Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://scottrsm.github.io/DNNS.jl/dev/)
+[![Docs (stable)](https://img.shields.io/badge/docs-stable-blue.svg)](https://scottrsm.github.io/DNNS.jl/stable/)
+[![Docs (dev)](https://img.shields.io/badge/docs-dev-blue.svg)](https://scottrsm.github.io/DNNS.jl/dev/)
 
 A Julia package to do Deep Learning.
 It consists of 4 modules in the **src** directory:
@@ -27,5 +28,6 @@ A Jupyter notebook is also provided demonstrating the DNNS module.
 It creates a simple network to fit a noisy straight line.
 
 ## Documentation
+- HTML (stable, v2.0.0): https://scottrsm.github.io/DNNS.jl/stable/
 - HTML (latest, built from `main`): https://scottrsm.github.io/DNNS.jl/dev/
 - Markdown source: [docs/src/index.md](docs/src/index.md)
