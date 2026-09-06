@@ -23,6 +23,9 @@ jobs:
         exclude:
           - os: macOS-latest
             julia-arch: x86
+          # Plots/GR fail to precompile on 32-bit Windows (access violation in GR).
+          - os: windows-latest
+            julia-arch: x86
 
     steps:
       - uses: actions/checkout@v4
